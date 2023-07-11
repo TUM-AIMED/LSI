@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 
 
 class MLPMultiLabel(torch.nn.Module):
@@ -13,4 +14,6 @@ class MLPMultiLabel(torch.nn.Module):
 
     def forward(self, x):
         output = self.relu(self.linear1(x))
-        return torch.sigmoid(self.linear2(output))
+        output = self.linear2(output)
+        output = F.softmax(output, dim=1)
+        return output

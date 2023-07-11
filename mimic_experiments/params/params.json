@@ -1,0 +1,29 @@
+{
+    "model":{
+        "name": "trial",
+        "dataset_name": "fairface",
+        "model": "alexnet"
+    },
+    "training": {
+      "num_epochs": 200,
+      "learning_rate": 0.009478653844790382,
+      "l2_regularizer": 0.0009389723136946396,
+      "batch_size": 200,
+      "selected_labels_old": [0, 1, 2],
+      "selected_labels": ["Indian", "Black", "White"],
+      "balancing_of_labels": [0.01, 0.01, 0.01]
+    },
+    "testing":{
+        "test_every": 1
+    },
+    "DP": {
+        "max_per_sample_grad_norm": 2000,
+        "old": 0.343, 
+        "sigma_tilde": 10.614652581338738,
+        "T": 40000000
+    },
+    "Paths":{
+        "gradient_save_path": "./results/gradients",
+        "stats_save_path": "./results/stats"
+    }
+  }
