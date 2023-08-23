@@ -28,6 +28,20 @@ def determine_active_set(params,
                          grad_norms,
                          budget,
                          N):
+    """
+    train runs the epoch loop and calls train_step and test
+
+    :param params: params dict
+    :param model: pytorch model
+    :param DEVICE: available device
+    :param optimizer: optimizer fct (Adam, AdamW etc.)
+    :param criterion: loss function
+    :param train_loader_0: dataloader of the whole, unfiltered dataset
+    :param grad_norms: tensor to save all the accumulated gradient norms - used for logging
+    :param budget: privacy budget of data elements
+    :param N: number of training samples
+
+    """ 
 
     # Train loader returns also indices (vector idx)
     with BatchMemoryManager(data_loader=train_loader_0, max_physical_batch_size=5000, optimizer=optimizer) as train_loader_0_new:
@@ -99,6 +113,18 @@ def train_step(params,
                privacy_engine,
                stop_epsilon,
                train_loader_active):
+    """
+    train runs the epoch loop and calls train_step and test
+
+    :param params: params dict
+    :param model: pytorch model
+    :param optimizer: optimizer fct (Adam, AdamW etc.)
+    :param DEVICE: available device
+    :param criterion: loss function
+    :param privacy_engine: opacus privacy engine
+    :param stop_epsilon: idk
+    :param train_loader_active: dataloader of the filtered dataset
+    """ 
     
     T = params["DP"]["T"]
     
@@ -187,7 +213,23 @@ def train(
     privacy_engine=None,
     stop_epsilon=None,
 ):
-    
+    """
+    train runs the epoch loop and calls train_step and test
+
+    :param params: params dict
+    :param model: pytorch model
+    :param DEVICE: available device
+    :param train_loader_0: dataloader of the whole, unfiltered dataset
+    :param test_loader: dataloader with the test data
+    :param optimizer: optimizer fct (Adam, AdamW etc.)
+    :param budget: privacy budget of data elements
+    :param criterion: loss function
+    :param N: number of training samples
+    :param stats_path: path to location of stats save_path
+    :param gradient_save_path: path to location of gradient save files
+    :param privacy_engine: opacus privacy engine
+    :param stop_epsilon: idk
+    """ 
 
     # Compute all the individual norms (actually the squared norms squares are saved here)
     grad_norms = torch.zeros(N).to(DEVICE)
@@ -254,6 +296,13 @@ def train(
 
 
 def test(DEVICE, model, test_set):
+    """
+    test gets the output of the model an computes the accuracy
+
+    :param DEVICE: available device
+    :param model: pytorch model
+    :param test_set: dataloader of the test data
+    """ 
     model.eval()  # Set the model to evaluation mode
     correct = 0
     total = 0
@@ -317,23 +366,20 @@ def _save_stats(
 def train_with_params(
     params : dict
 ):
+    """
+    train_with_params initializes the main training parts (model, criterion, optimizer and makes private)
+
+    :param params: dict with all parameters
+    """ 
+    DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    torch.manual_seed(472168)
+    warnings.filterwarnings("ignore", message=r".*Using a non-full backward hook.*")
 
     dataset_class, data_path = get_dataset(params["model"]["dataset_name"])
     model_class = get_model(params["model"]["model"],)
 
-    torch.manual_seed(472168)
-    warnings.filterwarnings("ignore", message=r".*Using a non-full backward hook.*")
-
-    DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-    sigma = params["DP"]["sigma_tilde"]
-    T = params["DP"]["T"]
-    max_per_sample_grad_norm = params["DP"]["max_per_sample_grad_norm"]
-
-    budget = (
-        T * max_per_sample_grad_norm ** 2
-    ) + 1e-3  # This will correspond to (eps,delta)-DP filtering with noise std sigma_tilde/sqrt(T)
-
+    budget = (params["DP"]["T"] * params["DP"]["max_per_sample_grad_norm"] ** 2) + 1e-3 
+    
     # This train loader is for the full batch and for checking all the individual gradient norms
     data_set = dataset_class(data_path, train=True, classes=params["training"]["selected_labels"], portions=params["training"]["balancing_of_labels"])
     train_loader_0 = torch.utils.data.DataLoader(
@@ -353,6 +399,7 @@ def train_with_params(
         pin_memory=False,
     )
 
+    # This loader contains the data of the test datset
     test_loader = torch.utils.data.DataLoader(
         dataset_class(data_path, train=False, classes=params["training"]["selected_labels"]),
         batch_size=1,
@@ -361,6 +408,7 @@ def train_with_params(
         pin_memory=False,
     )
 
+
     train_X_example, _, _, _ = train_loader.dataset[0]
     N = len(train_loader.dataset)
     if N < params["training"]["batch_size"]:
@@ -368,8 +416,6 @@ def train_with_params(
     
 
     model = model_class(len(train_X_example), len(np.unique(params["training"]["selected_labels"]))).to(DEVICE)
-    # model.freeze_all_but_last()
-    # model.test_freeze()
 
     criterion = torch.nn.CrossEntropyLoss()
 
@@ -387,8 +433,8 @@ def train_with_params(
         module=model,
         optimizer=optimizer,
         data_loader=train_loader,
-        noise_multiplier=sigma,
-        max_grad_norm=max_per_sample_grad_norm,
+        noise_multiplier=params["DP"]["sigma_tilde"],
+        max_grad_norm=params["DP"]["max_per_sample_grad_norm"],
         poisson_sampling=False,
     )
     if not os.path.exists(params["Paths"]["gradient_save_path"]):
@@ -416,9 +462,16 @@ def train_with_params(
     )
 
 
-os.environ['WANDB_CONFIG_DIR'] = '/vol/aimspace/users/kaiserj/wandb_config/'
+
+
 
 if __name__ == "__main__":
+    """
+    __main__ Main starting point for running a dpsgt algorithm
+
+    - edit: json_file_path for config file
+    """ 
+    os.environ['WANDB_CONFIG_DIR'] = '/vol/aimspace/users/kaiserj/wandb_config/'
     json_file_path = '/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/params/params.json'
     """with open('/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/params/params.json', 'r') as file:
         params = json.load(file)
