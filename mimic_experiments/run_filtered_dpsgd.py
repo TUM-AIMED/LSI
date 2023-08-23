@@ -439,7 +439,8 @@ if __name__ == "__main__":
     parser.add_argument("--l2_regularizer", type=float, default=params["training"]["l2_regularizer"], help="Value for l2_regularizer (optional)")
     parser.add_argument("--epochs", type=float, default=params["training"]["num_epochs"], help="Value for num_epochs (optional)")
     parser.add_argument("--batchsize", type=float, default=params["training"]["batch_size"], help="Value for batch_size (optional)")
-    parser.add_argument("--clip", type=float, default=params["DP"]["max_per_sample_grad_norm"], help="Value for batch_size (optional)")
+    parser.add_argument("--clip", type=float, default=params["DP"]["max_per_sample_grad_norm"], help="Value for clipping threshold (optional)")
+    parser.add_argument("--model", type=str, default=params["model"]["model"], help="Value for clipping threshold (optional)")
     parser.add_argument("--nosave", dest='params["save"]', action='store_false')    
     args = parser.parse_args()
 
@@ -448,16 +449,8 @@ if __name__ == "__main__":
     params["training"]["num_epochs"] = int(args.epochs)
     params["training"]["batch_size"] = int(args.batchsize)
     params["DP"]["max_per_sample_grad_norm"] = args.clip
+    params["model"]["model"] = args.model
 
-    print(params["training"]["learning_rate"])
-    print(params["training"]["l2_regularizer"])
-
-
-    params["training"]["learning_rate"] = args.learning_rate
-    params["training"]["l2_regularizer"] = args.l2_regularizer
-
-    print(params["training"]["learning_rate"])
-    print(params["training"]["l2_regularizer"])
 
     run = wandb.init(
         project="individual_privacy",
