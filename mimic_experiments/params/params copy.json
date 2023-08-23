@@ -1,39 +1,39 @@
 {
     "model": {
         "name_base": "trial_",
-        "name_num": 272,
-        "name": "trial_272",
+        "name_num": 0,
+        "name": "trial_0",
         "dataset_name": "fairface",
         "model": "alexnet"
     },
     "training": {
-        "num_epochs": 40,
-        "learning_rate": 1e-05,
-        "l2_regularizer": 1e-06,
-        "batch_size": 512,
+        "num_epochs": 200,
+        "learning_rate": 0.009478653844790382,
+        "l2_regularizer": 0.0009389723136946396,
+        "batch_size": 200,
         "selected_labels_old": [
             0,
             1,
             2
         ],
         "selected_labels": [
+            "Indian",
             "Black",
-            "White",
-            "Indian"
+            "White"
         ],
         "balancing_of_labels": [
-            0.1,
-            0.1,
-            0.1
+            0.01,
+            0.01,
+            0.01
         ]
     },
     "testing": {
-        "test_every": 4
+        "test_every": 1
     },
     "DP": {
-        "max_per_sample_grad_norm": 200000000,
+        "max_per_sample_grad_norm": 200000,
         "old": 0.343,
-        "sigma_tilde": 1e-10,
+        "sigma_tilde": 10000.614652581338,
         "sigma_tilde_old": 10.614652581338738,
         "T": 400
     },

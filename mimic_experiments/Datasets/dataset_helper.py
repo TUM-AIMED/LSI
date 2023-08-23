@@ -6,7 +6,7 @@ def get_dataset(keyword):
     if keyword == "diabetes":
         return DiabetesDataset, "C:\Promotion\Code\Individual_DP\DIABETES_dataset"
     elif keyword == "fairface":
-        return FairfaceDataset, "C:\Promotion\Code\Individual_DP\FAIRFACE"
+        return FairfaceDataset, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/fairface"
     elif keyword == "mnist":
         return MNISTDataset, "C:\Promotion\Code\Individual_DP\MNIST_ORG"
     else:

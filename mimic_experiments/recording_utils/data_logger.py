@@ -4,7 +4,6 @@ import torch
 import pickle
 import numpy as np
 import pandas as pd
-from Datasets.dataset_mnist_unbalanced import MNISTDataset
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -82,13 +81,14 @@ def _create_df_of_gradients(
 
     # compute gradient for single data points
     # a naive, but simple solution
-    for _, (data, target, id) in enumerate(data_loader):
+    for _, (data, target, id, _) in enumerate(data_loader):
 
         # ignore pytorch warnings about hooks
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
 
             # compute gradients for current sample
+            data, target = data.to(DEVICE), target.to(DEVICE)
             optimizer.zero_grad()
             output = model(data)
             loss = criterion(output, target)
@@ -98,20 +98,20 @@ def _create_df_of_gradients(
         total_gradient_norm = 0
         batch_grad_norms = 0
         for (ii, p) in enumerate(model.parameters()):
+            if p.requires_grad:
+                per_sample_grad = p.grad_sample
 
-            per_sample_grad = p.grad_sample
+                # dimension across which we compute the norms for this gradient part
+                # (here is difference e.g. between biases and weight matrices)
+                per_sample_grad = torch.reshape(per_sample_grad, (per_sample_grad.shape[0], per_sample_grad.shape[1], -1))
+                dims = list(range(1, len(per_sample_grad.shape)))
 
-            # dimension across which we compute the norms for this gradient part
-            # (here is difference e.g. between biases and weight matrices)
-            per_sample_grad = torch.reshape(per_sample_grad, (per_sample_grad.shape[0], per_sample_grad.shape[1], -1))
-            dims = list(range(1, len(per_sample_grad.shape)))
+                # compute the clipped norms. Gradients will be clipped in .backward()
+                per_sample_grad_norms = per_sample_grad.norm(dim=dims)
 
-            # compute the clipped norms. Gradients will be clipped in .backward()
-            per_sample_grad_norms = per_sample_grad.norm(dim=dims)
+                batch_grad_norms += per_sample_grad_norms ** 2
 
-            batch_grad_norms += per_sample_grad_norms ** 2
-
-            # compute the clipped norms. Gradients will be then clipped in .backward()
+                # compute the clipped norms. Gradients will be then clipped in .backward()
         total_gradient_norm += (
             torch.sqrt(batch_grad_norms).clamp(max=max_grad_norm)
         ) ** 2
@@ -146,16 +146,17 @@ def _create_df_of_losses(
     losses_list = []
     id_list = []
     sample_ids_list = []
-    for _, (data, target, id) in enumerate(data_loader):
+    for _, (data, target, id, _) in enumerate(data_loader):
 
         # ignore pytorch warnings about hooks
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
+            data, target = data.to(DEVICE), target.to(DEVICE)
             with torch.no_grad():
                 y_pred = model(torch.atleast_2d(data))
                 losses_list.extend(loss(torch.atleast_2d(y_pred), torch.atleast_1d(target)))
                 id_list.extend(id.tolist())
-                sample_ids_list.extend(sample_ids[id])
+    sample_ids_list = sample_ids[id_list]
     losses_list = [tensor.item() for tensor in losses_list]
     df = pd.DataFrame({"ids" : torch.tensor(id_list),
                     "classes": torch.tensor(sample_ids_list), 

@@ -4,25 +4,22 @@ import torchvision.models as models
 import torch.nn.functional as F
 
 
-class AlexNetWrapper(nn.Module):
+class ResNet34Wrapper(nn.Module):
     def __init__(self, input_dim, num_classes):
-        super(AlexNetWrapper, self).__init__()
+        super(ResNet34Wrapper, self).__init__()
         self.num_classes = num_classes
-        self.features = models.alexnet(pretrained=True).features
-        self.avgpool = nn.AdaptiveAvgPool2d((6, 6))
-        self.classifier = nn.Linear(256 * 6 * 6, num_classes)
+        self.features = models.resnet34(pretrained=True)
+        in_features = self.features.fc.in_features
+        self.features.fc = nn.Linear(in_features, num_classes)
 
     def forward(self, x):
         x = self.features(x)
-        x = self.avgpool(x)
-        x = torch.flatten(x, 1)
-        x = self.classifier(x)
         return x
     
     def freeze_all_but_last(self):
         #named_parameters is a tuple with (parameter name: string, parameters: tensor)
         for n, p in self.named_parameters():
-            if 'classifier' in n:
+            if 'fc' in n:
                 pass
             else:
                 p.requires_grad = False

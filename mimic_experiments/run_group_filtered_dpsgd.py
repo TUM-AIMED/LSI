@@ -23,13 +23,14 @@ def determine_active_set(params,
                          optimizer,
                          criterion,
                          train_loader_0,
-                         grad_norms,
+                         grad_norms_attribute,
                          budget,
                          N):
 
     # Train loader returns also indices (vector idx)
+    active_indices = []
     with BatchMemoryManager(data_loader=train_loader_0, max_physical_batch_size=5000, optimizer=optimizer) as train_loader_0_new:
-        for _, (data, target, idx) in enumerate(train_loader_0_new):
+        for _, (data, target, idx, attributes) in enumerate(train_loader_0_new):
             # print(idx[0])
             data, target = data.to(DEVICE), target.to(DEVICE)
             optimizer.zero_grad()
@@ -55,19 +56,25 @@ def determine_active_set(params,
 
             # compute the clipped norms. Gradients will be then clipped in .backward()
             # clipped, per sample gradient norms, to track privacy
-            grad_norms[idx] += (
-                torch.sqrt(batch_grad_norms).clamp(max=params["DP"]["max_per_sample_grad_norm"])
-            ) ** 2
+            save_to_add = True
+            for attribute in attributes:
+                grad_norms_attribute[attribute] += (
+                    torch.sqrt(batch_grad_norms).clamp(max=params["DP"]["max_per_sample_grad_norm"])
+                ) ** 2
+                if grad_norms_attribute[attribute] > budget[attribute]:
+                    save_to_add = False+
+            
+            if save_to_add:
+                active_indices.append(idx)
+
 
     del batch_grad_norms
     optimizer.zero_grad()
     torch.cuda.empty_cache()
 
-    # filter elements that are allowed to continue
-    active_indices = [idx for idx in range(N) if grad_norms[idx] < budget]
 
     if len(active_indices) == 0:
-        # print("all budgets exceeded, stopping at epoch: " + str(epoch))
+        print("all budgets exceeded, stopping at epoch: " + str(epoch))
         return
 
     data_set_active = deepcopy(train_loader_0.dataset)
@@ -79,12 +86,6 @@ def determine_active_set(params,
         num_workers=0,
         pin_memory=False,
     )
-    # unique_values, value_counts = np.unique(train_loader_active.dataset.class_assignment_list, return_counts=True)
-    # total_count = len(train_loader_active.dataset.class_assignment_list)
-    # portions = value_counts / total_count
-    # print(unique_values)
-    # print(portions)
-
     return train_loader_active
 
 
@@ -105,7 +106,7 @@ def train_step(params,
         correct = 0
         total = 0
         
-        for _, (data, target, idx) in enumerate(train_loader_new):
+        for _, (data, target, idx, _) in enumerate(train_loader_new):
 
             data, target = data.to(DEVICE), target.to(DEVICE)
             optimizer.zero_grad()
@@ -160,7 +161,8 @@ def train(
     
 
     # Compute all the individual norms (actually the squared norms squares are saved here)
-    grad_norms = torch.zeros(N).to(DEVICE)
+    different_attributes = np.unique(train_loader_0.attributes)
+    grad_norms_attribute = {key: 0.0 for key in different_attributes}
     recorded_gradients = []
 
 
@@ -283,9 +285,10 @@ def train_with_params(
     T = params["DP"]["T"]
     max_per_sample_grad_norm = params["DP"]["max_per_sample_grad_norm"]
 
-    budget = (
-        T * max_per_sample_grad_norm ** 2
-    ) + 1e-3  # This will correspond to (eps,delta)-DP filtering with noise std sigma_tilde/sqrt(T)
+    budget_indiv = 1000 # Change this
+
+    different_attributes = np.unique(train_loader_0.attributes)
+    budget = {key: budget_indiv for key in different_attributes}
 
     # This train loader is for the full batch and for checking all the individual gradient norms
     data_set = dataset_class(data_path, train=True, classes=params["training"]["selected_labels"], portions=params["training"]["balancing_of_labels"])
