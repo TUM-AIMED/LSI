@@ -1,9 +1,46 @@
 {
-    "training": {
-      "balancing_of_labels": [[0.01, 0.01, 0.01], [0.02, 0.01, 0.02], [0.01, 0.02, 0.01]]
+    "variables": {
+      "model":{
+            "model": [
+              "alexnet",
+              "resnet18",
+              "resnet34"
+            ]
+      } , 
+      "training": {
+            "balancing_of_labels": [
+                [
+                    0.01,
+                    0.01,
+                    0.01
+                ],
+                [
+                    0.02,
+                    0.01,
+                    0.02
+                ],
+                [
+                    0.01,
+                    0.02,
+                    0.01
+                ]
+            ],
+            "batch_size": [
+                100
+            ]
+        },
+        "DP": {
+            "max_per_sample_grad_norm": [
+                5,
+                200
+            ],
+            "sigma_tilde": [
+                1,
+                2,
+                3
+            ]
+        }
     },
-    "DP": {
-        "max_per_sample_grad_norm": [5, 200],
-        "sigma_tilde": [1, 2, 3]
-    }
-  }
+    "save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/experiments/results",
+    "experiment_nr": 4
+}

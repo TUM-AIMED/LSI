@@ -6,9 +6,10 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
 from sklearn import preprocessing
+import sklearn
 
 class FairfaceDataset(Dataset):
-    def __init__(self, data_path, train=True, classes=None, portions=None, transform=None):
+    def __init__(self, data_path, train=True, classes=None, portions=None, transform=None, shuffle=False):
         self.label_class = "race"
         self.root_dir = data_path
         if train:
@@ -45,11 +46,23 @@ class FairfaceDataset(Dataset):
         le.fit(self.labels)
         self.labels = le.transform(self.labels)
         self.class_assignments2 = le
+        if shuffle:
+            self.data, self.labels, self.attributes, self.active_indices = sklearn.utils.shuffle(
+                self.data, 
+                self.labels, 
+                self.attributes, 
+                self.active_indices,
+                random_state=1)
+        print(dict(zip(le.classes_, le.transform(le.classes_))))
+
+        
 
 
     def _set_classes(self, classes):
         le = preprocessing.LabelEncoder()
         le.fit(self.labels)
+        self.class_assignments1 = le
+        print(dict(zip(le.classes_, le.transform(le.classes_))))
         self.labels = le.transform(self.labels)
         self.class_assignments = le
         valid_classes = self.class_assignments.transform(classes)
@@ -66,11 +79,14 @@ class FairfaceDataset(Dataset):
 
     def _apply_portions(self, classes, portions):
         remaining_idx = []
+        class_sizes = []
         classes = self.class_assignments.transform(classes)
         for class_label, portion in zip(classes, portions):
             class_idx = [idx for idx, label in enumerate(self.labels) if label == class_label]
-            class_size = len(class_idx)
-            num_samples = int(class_size * portion)
+            class_sizes.append(len(class_idx))
+        for class_label, portion in zip(classes, portions):
+            class_idx = [idx for idx, label in enumerate(self.labels) if label == class_label]
+            num_samples = int(min(class_sizes) * portion)
             sampled_data = class_idx[:num_samples]
             remaining_idx.extend(sampled_data)
         remaining_idx.sort()

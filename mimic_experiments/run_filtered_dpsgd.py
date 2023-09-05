@@ -3,11 +3,13 @@ import os
 
 from recording_utils.stats_recorder import write_stats
 from recording_utils.data_logger import (
-    log_data, save_gradients_to_pickle)
+    log_data, save_gradients_to_pickle, log_realized_gradients)
 from models.model_helper import get_model
 from Datasets.dataset_helper import get_dataset
 from opacus.utils.batch_memory_manager import BatchMemoryManager
 from opacus.data_loader import DPDataLoader
+from opacus.validators.module_validator import ModuleValidator
+
 from opacus import PrivacyEngine
 from copy import deepcopy
 
@@ -249,6 +251,15 @@ def train(
         #                  grad_norms,
         #                  budget,
         #                  N)
+        log_realized_gradients(params,
+                         model,
+                         DEVICE,
+                         optimizer,
+                         criterion,
+                         train_loader_0,
+                         grad_norms,
+                         budget,
+                         N)
         data_set_active = deepcopy(train_loader_0.dataset)
         train_loader_active = torch.utils.data.DataLoader(
             data_set_active,
@@ -371,6 +382,16 @@ def train_with_params(
 
     :param params: dict with all parameters
     """ 
+    run = wandb.init(
+        project="individual_privacy",
+        config = params,
+        dir=params["Paths"]["wandb_save_path"],
+        tags=["initial_testing"],
+        name=params["model"]["name"],
+        entity="jkaiser",
+        settings=wandb.Settings(_service_wait=3000)
+    )
+
     DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     torch.manual_seed(472168)
     warnings.filterwarnings("ignore", message=r".*Using a non-full backward hook.*")
@@ -381,7 +402,7 @@ def train_with_params(
     budget = (params["DP"]["T"] * params["DP"]["max_per_sample_grad_norm"] ** 2) + 1e-3 
     
     # This train loader is for the full batch and for checking all the individual gradient norms
-    data_set = dataset_class(data_path, train=True, classes=params["training"]["selected_labels"], portions=params["training"]["balancing_of_labels"])
+    data_set = dataset_class(data_path, train=True, classes=params["training"]["selected_labels"], portions=params["training"]["balancing_of_labels"], shuffle=True)
     train_loader_0 = torch.utils.data.DataLoader(
         data_set,
         batch_size=params["training"]["batch_size"],
@@ -414,8 +435,9 @@ def train_with_params(
     if N < params["training"]["batch_size"]:
         raise Exception(f"Batchsize of {params['training']['batch_size']} is larger than the size of the dataset of {N}")
     
-
-    model = model_class(len(train_X_example), len(np.unique(params["training"]["selected_labels"]))).to(DEVICE)
+    private = True
+    if private:
+        model = ModuleValidator.fix_and_validate(model_class(len(train_X_example), len(np.unique(params["training"]["selected_labels"]))).to(DEVICE))
 
     criterion = torch.nn.CrossEntropyLoss()
 
@@ -495,6 +517,7 @@ if __name__ == "__main__":
     parser.add_argument("--clip", type=float, default=params["DP"]["max_per_sample_grad_norm"], help="Value for clipping threshold (optional)")
     parser.add_argument("--model", type=str, default=params["model"]["model"], help="Value for clipping threshold (optional)")
     parser.add_argument("--nosave", dest='params["save"]', action='store_false')    
+    parser.add_argument("--balancing", action="store", type=float, nargs="+", default=params["training"]["balancing_of_labels"], help="balancing of the dataset (optional)")
     args = parser.parse_args()
 
     params["training"]["learning_rate"] = args.learning_rate
@@ -503,16 +526,7 @@ if __name__ == "__main__":
     params["training"]["batch_size"] = int(args.batchsize)
     params["DP"]["max_per_sample_grad_norm"] = args.clip
     params["model"]["model"] = args.model
-
-
-    run = wandb.init(
-        project="individual_privacy",
-        config = params,
-        dir=params["Paths"]["wandb_save_path"],
-        tags=["initial_testing"],
-        name=params["model"]["name"],
-        entity="jkaiser"
-    )
+    params["training"]["balancing_of_labels"] = args.balancing
 
 
     train_with_params(

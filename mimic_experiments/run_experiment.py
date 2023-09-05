@@ -1,24 +1,35 @@
 
-from run_test_filtered_dpsgd_compare_loss import train_with_params
+from run_filtered_dpsgd import train_with_params
 import json
 from itertools import permutations
 from copy import deepcopy
 import pandas as pd
+import os
 
-save_path = "C:\Promotion\Code\Individual_DP\individual-accounting-gdp\mimic_experiments\results\exp_runs"
+params_path = '/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/params/params.json'
+params_exp_path = '/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/params/params_experiments.json'
 
-with open('./params/params.json', 'r') as file:
+with open(params_path, 'r') as file:
         params = json.load(file)
 
-with open('./params/params_experiments.json', 'r') as file:
+with open(params_exp_path, 'r') as file:
         params_experiment = json.load(file)
+
+experiment_nr = params_experiment["experiment_nr"]
+params_experiment["experiment_nr"] += 1
+with open(params_exp_path, 'w') as file:
+    json.dump(params_experiment, file, indent=4)
+
+save_path = params_experiment["save_path"]
+if not os.path.exists(save_path):
+        os.makedirs(save_path)
 
 origin = []
 data = []
-for topic in params_experiment:
-        for key in params_experiment[topic]:
+for topic in params_experiment["variables"]:
+        for key in params_experiment["variables"][topic]:
                 origin.append([topic, key])
-                data.append(params_experiment[topic][key])
+                data.append(params_experiment["variables"][topic][key])
 
 name = "exp"
 all_combinations = []
@@ -47,5 +58,7 @@ df.to_pickle(save_path + name +".pkl")
 for (exp_params, name) in zip(all_combinations, all_names):
     for (exp_param, location) in zip(exp_params, origin):
         params[location[0]][location[1]] = exp_param
-    params["model"]["name"] = name
+    params["model"]["name"] = "experiment_" + str(experiment_nr) + "_" + name
+    params["Paths"]["gradient_save_path"] = os.path.join(save_path, "gradients", "experiment_" + str(experiment_nr))
+    params["Paths"]["stats_save_path"] = os.path.join(save_path, "stats", "experiment_" + str(experiment_nr))
     train_with_params(params)
