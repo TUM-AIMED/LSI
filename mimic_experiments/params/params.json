@@ -4,7 +4,10 @@
         "name_num": 502,
         "name": "trial_502",
         "dataset_name": "fairface",
-        "model": "alexnet"
+        "model": "alexnet",
+        "private": false,
+        "private_filter": false,
+        "seed": 472168
     },
     "training": {
         "num_epochs": 40,

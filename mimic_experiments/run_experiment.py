@@ -1,5 +1,5 @@
 
-from run_filtered_dpsgd import train_with_params
+from mimic_experiments.compute_anything import train_with_params
 import json
 from itertools import permutations
 from copy import deepcopy
