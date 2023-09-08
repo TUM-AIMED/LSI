@@ -3,7 +3,7 @@
     "configurations": [
 
         {
-            "name": "Python: Current File",
+            "name": "Current_compute_file",
             "type": "python",
             "request": "launch",
             "program": "${file}",
@@ -19,6 +19,14 @@
             "console": "integratedTerminal",
             "args" : ["--epochs", "3", "-r", "10", "-n", "1", "--alphas", "2", "5", "10", "20", "100"], 
             "justMyCode": false
-        }
+        },
+        {
+            "name": "Real Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
     ]
 }

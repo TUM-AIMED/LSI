@@ -16,4 +16,4 @@ conda deactivate # If you launch your script from a terminal where your environm
 conda activate indiv_privacy # If this does not work, try 'source activate ptl'
  
 # run the program
-python mimic_experiments/run_filtered_dpsgd.py --epochs 100 --balancing 1 1 1 --learning_rate 0.0005 --clip 100
+python mimic_experiments/compute_anything.py --epochs 100 

@@ -165,6 +165,7 @@ cython_debug/
 FAIRFACE/
 FAIRFACE_old/
 fairface/
+MEDMNIST/
 test.py
 mimic_experiments/results/
 wandb/

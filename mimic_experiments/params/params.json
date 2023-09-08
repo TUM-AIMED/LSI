@@ -1,19 +1,21 @@
 {
+    "save": true,
     "model": {
-        "name_base": "trial_",
-        "name_num": 502,
-        "name": "trial_502",
-        "dataset_name": "fairface",
+        "name_base": "laplace_",
+        "name_num": 28,
+        "name": "laplace_28",
+        "dataset_name": "organcmnist",
         "model": "alexnet",
         "private": false,
         "private_filter": false,
-        "seed": 472168
+        "seed": 472168,
+        "split_data": false
     },
     "training": {
-        "num_epochs": 40,
+        "num_epochs": 2,
         "learning_rate": 0.0005,
         "l2_regularizer": 0.0005,
-        "batch_size": 1300,
+        "batch_size": 150,
         "selected_labels_old": [
             0,
             1,
@@ -25,9 +27,7 @@
             "Indian"
         ],
         "balancing_of_labels": [
-            1,
-            1,
-            1
+            0.1
         ]
     },
     "testing": {
@@ -43,6 +43,20 @@
     "Paths": {
         "gradient_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results/gradients",
         "stats_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results/stats",
-        "wandb_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/results/wandb/"
+        "wandb_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/results/wandb/",
+        "compare_model_path": "/test"
+    },
+    "logging": {
+        "_comment_ever_epoch": [
+            "gradient_df_complete",
+            "losses_df_active",
+            "losses_df_complete",
+            "losses_df_test",
+            "gradients"
+        ],
+        "every_epoch": [],
+        "final": [
+            "model_laplace"
+        ]
     }
 }

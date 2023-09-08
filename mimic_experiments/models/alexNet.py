@@ -10,13 +10,13 @@ class AlexNetWrapper(nn.Module):
         self.num_classes = num_classes
         self.features = models.alexnet(pretrained=True).features
         self.avgpool = nn.AdaptiveAvgPool2d((6, 6))
+        self.flatten = nn.Flatten()
         self.classifier = nn.Linear(256 * 6 * 6, num_classes)
+
+        self.features = nn.Sequential(self.features, self.avgpool, self.flatten, self.classifier)
 
     def forward(self, x):
         x = self.features(x)
-        x = self.avgpool(x)
-        x = torch.flatten(x, 1)
-        x = self.classifier(x)
         return x
     
     def freeze_all_but_last(self):
@@ -30,3 +30,11 @@ class AlexNetWrapper(nn.Module):
     def test_freeze(self):
         for p in self.parameters():
             print(p.requires_grad)
+
+    def ReLU_inplace_to_False(self, features):
+        for layer in features._modules.values():
+            if isinstance(layer, nn.ReLU):
+                print(layer.inplace)
+                layer.inplace = False
+                print(layer.inplace)
+            self.ReLU_inplace_to_False(layer)

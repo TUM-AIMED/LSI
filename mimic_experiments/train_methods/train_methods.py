@@ -1,5 +1,5 @@
 from utils.data_logger import (
-    log_data, save_gradients_to_pickle, log_realized_gradients)
+    log_data_epoch, log_data_final, save_data_to_pickle, log_realized_gradients)
 from utils.data_utils import determine_active_set
 from opacus.utils.batch_memory_manager import BatchMemoryManager
 
@@ -58,10 +58,30 @@ def normal_train_step(params,
     """ 
 
     # Run full batch, sum up the gradients. Then we filter and replace the train_loader
-    with BatchMemoryManager(data_loader=train_loader_active, max_physical_batch_size=50, optimizer=optimizer) as train_loader_new:
+    total = 0
+    correct = 0
+    if params["model"]["private"]:
+        with BatchMemoryManager(data_loader=train_loader_active, max_physical_batch_size=50, optimizer=optimizer) as train_loader_new:
+            loss_list = []
+            for _, (data, target, idx, _) in enumerate(train_loader_new):
+                data, target = data.to(DEVICE), target.to(DEVICE)
+                optimizer.zero_grad()
+
+                output = model(data)
+                loss = criterion(output, target)
+                loss_list.append(loss)
+                _, predicted = torch.max(output.data, 1)
+                total += target.size(0)
+                correct += (predicted == target).sum().item()
+                loss.backward()
+                optimizer.step()
+            accuracy = correct/total
+            print(f"training accuracy {accuracy}")
+            wandb.log({"train_accuracy": accuracy})
+            wandb.log({"loss": sum(loss_list)})
+    else:
         loss_list = []
-
-
+        train_loader_new = train_loader_active
         for _, (data, target, idx, _) in enumerate(train_loader_new):
             data, target = data.to(DEVICE), target.to(DEVICE)
             optimizer.zero_grad()
@@ -104,7 +124,6 @@ def train(
     criterion,
     N,
     stats_path,
-    gradient_save_path,
     privacy_engine=None,
     stop_epsilon=None,
 ):
@@ -128,7 +147,7 @@ def train(
 
     # Compute all the individual norms (actually the squared norms squares are saved here)
     grad_norms = torch.zeros(N).to(DEVICE)
-    recorded_gradients = []
+    recorded_data = []
 
     for epoch in range(1, params["training"]["num_epochs"] + 1):
         model.train()
@@ -153,16 +172,16 @@ def train(
                 num_workers=0,
                 pin_memory=False,
             )
-            
-        log_realized_gradients(params,
-                         model,
-                         DEVICE,
-                         optimizer,
-                         criterion,
-                         train_loader_0,
-                         grad_norms,
-                         budget,
-                         N)
+        if "gradients" in params["logging"]["every_epoch"]:    
+            log_realized_gradients(params,
+                            model,
+                            DEVICE,
+                            optimizer,
+                            criterion,
+                            train_loader_0,
+                            grad_norms,
+                            budget,
+                            N)
         print(len(train_loader_active.dataset))
         normal_train_step(params,
                model, 
@@ -173,14 +192,15 @@ def train(
                stop_epsilon,
                train_loader_active)
         if params["save"]:
-            recorded_gradients.append(log_data(
+            recorded_data.append(log_data_epoch(
+                params,
                 model,
                 optimizer, 
                 train_loader_active, 
                 train_loader_0, 
                 test_loader,
                 criterion, 
-                iteration=epoch, 
+                epoch=epoch, 
                 max_grad_norm=params["DP"]["max_per_sample_grad_norm"],
                 test_every=params["testing"]["test_every"],
             ))
@@ -188,11 +208,12 @@ def train(
         if epoch % params["testing"]["test_every"] == 0:
             test(DEVICE, model, test_loader)
 
+
+    recorded_data.append(log_data_final(params, train_loader_0, model))
     if params["save"]:
-        save_gradients_to_pickle(
+        save_data_to_pickle(
             params, 
-            recorded_gradients, 
-            path=gradient_save_path
+            recorded_data,
         )
     print(f'lr: {params["training"]["learning_rate"]}')
     print(f'l2: {params["training"]["l2_regularizer"]}')

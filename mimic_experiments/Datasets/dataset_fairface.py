@@ -37,15 +37,17 @@ class FairfaceDataset(Dataset):
         if classes:
             print("Reducing classes")
             self._set_classes(classes)
-        if portions and len(portions) != len(classes):
+        if portions == None:
+            print("No partitioning will be done")
+        elif len(portions) == 1 and classes == None:
+            print("Reducing size of Dataset")
+            self._apply_reduction(portions)
+        elif portions and len(portions) != len(classes):
             raise Exception("Number of classes and Portions needs to match")
         elif portions and len(portions) == len(classes):
-            print("Applying portioning")
+            print("Applying Class-specific Portioning")
             self._apply_portions(classes, portions)
-        le = preprocessing.LabelEncoder()
-        le.fit(self.labels)
-        self.labels = le.transform(self.labels)
-        self.class_assignments2 = le
+
         if shuffle:
             self.data, self.labels, self.attributes, self.active_indices = sklearn.utils.shuffle(
                 self.data, 
@@ -53,6 +55,12 @@ class FairfaceDataset(Dataset):
                 self.attributes, 
                 self.active_indices,
                 random_state=1)
+        
+        le = preprocessing.LabelEncoder()
+        le.fit(self.labels)
+        self.labels = le.transform(self.labels)
+        self.class_assignments2 = le
+        
         print(dict(zip(le.classes_, le.transform(le.classes_))))
 
         
@@ -94,6 +102,13 @@ class FairfaceDataset(Dataset):
         self.labels = self.labels[remaining_idx]
         self.active_indices = self.active_indices[remaining_idx]
         self.attributes = self.attributes[remaining_idx]
+
+    def _apply_reduction(self, portions):
+        num_samples = int(len(self.labels) * portions[0])
+        self.data = self.data[:num_samples]
+        self.labels = self.labels[:num_samples]
+        self.active_indices = self.active_indices[:num_samples]
+        self.attributes = self.attributes[:num_samples]
 
     def reduce_to_active(self, remaining_idx):
         self.data = self.data[remaining_idx]

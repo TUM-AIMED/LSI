@@ -1,14 +1,10 @@
 import sys
 import os
 
-from utils.stats_recorder import write_stats
-from utils.data_logger import (
-    log_data, save_gradients_to_pickle, log_realized_gradients)
+
 from models.model_helper import get_model
 from Datasets.dataset_helper import get_dataset
 from train_methods.train_methods import train
-from opacus.utils.batch_memory_manager import BatchMemoryManager
-from opacus.data_loader import DPDataLoader
 from opacus.validators.module_validator import ModuleValidator
 
 from opacus import PrivacyEngine
@@ -50,7 +46,10 @@ def train_with_params(
     budget = (params["DP"]["T"] * params["DP"]["max_per_sample_grad_norm"] ** 2) + 1e-3 
     
     # This train loader is for the full batch and for checking all the individual gradient norms
-    data_set = dataset_class(data_path, train=True, classes=params["training"]["selected_labels"], portions=params["training"]["balancing_of_labels"], shuffle=True)
+    if params["model"]["split_data"]:
+        data_set = dataset_class(data_path, train=True, classes=params["training"]["selected_labels"], portions=params["training"]["balancing_of_labels"], shuffle=True)
+    else:
+        data_set = dataset_class(data_path, train=True)
     train_loader_0 = torch.utils.data.DataLoader(
         data_set,
         batch_size=params["training"]["batch_size"],
@@ -60,8 +59,12 @@ def train_with_params(
     )
 
     # This train loader is the one that will be filtered. It will be replaced by a new one at each iteration
+    if params["model"]["split_data"]:
+        data_set = dataset_class(data_path, train=True, classes=params["training"]["selected_labels"], portions=params["training"]["balancing_of_labels"], shuffle=True)
+    else:
+        data_set = dataset_class(data_path, train=True)
     train_loader = torch.utils.data.DataLoader(
-        dataset_class(data_path, train=True, classes=params["training"]["selected_labels"], portions=params["training"]["balancing_of_labels"]),
+        data_set,
         batch_size=params["training"]["batch_size"],
         shuffle=False,
         num_workers=0,
@@ -69,8 +72,12 @@ def train_with_params(
     )
 
     # This loader contains the data of the test datset
+    if params["model"]["split_data"]:
+        data_set = dataset_class(data_path, train=False, classes=params["training"]["selected_labels"])
+    else:
+        data_set = dataset_class(data_path, train=False)
     test_loader = torch.utils.data.DataLoader(
-        dataset_class(data_path, train=False, classes=params["training"]["selected_labels"]),
+        data_set,
         batch_size=1,
         shuffle=False,
         num_workers=0,
@@ -80,13 +87,16 @@ def train_with_params(
 
     train_X_example, _, _, _ = train_loader_0.dataset[0]
     N = len(train_loader_0.dataset)
+
+    N_CLASSES =  len(np.unique(train_loader.dataset.labels))
+
     if N < params["training"]["batch_size"]:
         raise Exception(f"Batchsize of {params['training']['batch_size']} is larger than the size of the dataset of {N}")
     
     if params["model"]["private"]:
-        model = ModuleValidator.fix_and_validate(model_class(len(train_X_example), len(np.unique(params["training"]["selected_labels"]))).to(DEVICE))
+        model = ModuleValidator.fix_and_validate(model_class(len(train_X_example), N_CLASSES).to(DEVICE))
     else:
-        model = model_class(len(train_X_example), len(np.unique(params["training"]["selected_labels"]))).to(DEVICE)
+        model = model_class(len(train_X_example), N_CLASSES).to(DEVICE)
 
     criterion = torch.nn.CrossEntropyLoss()
 
@@ -96,9 +106,9 @@ def train_with_params(
         weight_decay=params["training"]["l2_regularizer"],
     )
 
+    privacy_engine = None
     if params["model"]["private"]:
-        secure_rng = False
-        privacy_engine = None   
+        secure_rng = False   
         privacy_engine = PrivacyEngine(secure_mode=secure_rng)
 
         model, optimizer, train_loader_0 = privacy_engine.make_private(
@@ -112,7 +122,6 @@ def train_with_params(
     
     if not os.path.exists(params["Paths"]["gradient_save_path"]):
         os.makedirs(params["Paths"]["gradient_save_path"])
-    gradient_save_path = os.path.join(params["Paths"]["gradient_save_path"])
     if not os.path.exists(params["Paths"]["stats_save_path"]):
         os.makedirs(params["Paths"]["stats_save_path"])
     stats_save_path = os.path.join(params["Paths"]["stats_save_path"])
@@ -129,10 +138,10 @@ def train_with_params(
         criterion,
         N,
         stats_path=stats_save_path,
-        gradient_save_path=gradient_save_path,
         privacy_engine=privacy_engine,
         stop_epsilon=None,
     )
+
 
 
 
@@ -156,7 +165,7 @@ if __name__ == "__main__":
     params["model"]["name"] = params["model"]["name_base"] + str(params["model"]["name_num"])
     with open(json_file_path, 'w') as file:
         json.dump(params, file, indent=4)
-    params["save"] = False
+
     
 
     parser = argparse.ArgumentParser(description="Process optional float inputs.")
