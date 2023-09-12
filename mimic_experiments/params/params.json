@@ -2,8 +2,8 @@
     "save": true,
     "model": {
         "name_base": "laplace_",
-        "name_num": 289,
-        "name": "laplace_289_remove_idx_156",
+        "name_num": 293,
+        "name": "laplace_293_remove_idx_179",
         "dataset_name": "cifar10",
         "model": "alexnet",
         "private": false,
@@ -42,7 +42,8 @@
     },
     "Inform": {
         "remove": true,
-        "idx": 156
+        "idx": 156,
+        "class": 0
     },
     "Paths": {
         "gradient_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results/gradients",

@@ -84,18 +84,19 @@ def train_with_params(
         num_workers=0,
         pin_memory=False,
     )
-    if params["Inform"]["remove"] and params["Inform"]["class"]:
+    if params["Inform"]["remove"] and params["Inform"]["class"] != None:
         class_found = False
         while not class_found:
-            _, label, _, _ = train_loader.__getitem__(params["Inform"]["idx"])
+            _, label, _, _ = train_loader.dataset.__getitem__(params["Inform"]["idx"])
             if label == params["Inform"]["class"]:
                 class_found = True
-                print(f"found class {params['Inform']['idx']} at index {params['Inform']['class']}")
+                print(f"found class {params['Inform']['class']} at index {params['Inform']['idx']}")
+                params["model"]["name"] = params["model"]["name_base"] + str(params["model"]["name_num"]) + "_remove_idx_" + str(params["Inform"]["idx"])
                 with open(json_file_path, 'w') as file:
                     json.dump(params, file, indent=4)
             else:
                 params["Inform"]["idx"] += 1
-    if params["Inform"]["remove"] and params["Inform"]["class"] == None :
+    if params["Inform"]["remove"]:
         train_loader_0.dataset.remove_index_from_data(params["Inform"]["idx"])
         train_loader.dataset.remove_index_from_data(params["Inform"]["idx"])
 
