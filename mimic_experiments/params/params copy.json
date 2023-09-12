@@ -1,45 +1,67 @@
 {
+    "save": true,
     "model": {
-        "name_base": "trial_",
-        "name_num": 0,
-        "name": "trial_0",
-        "dataset_name": "fairface",
-        "model": "alexnet"
+        "name_base": "laplace_",
+        "name_num": 33,
+        "name": "laplace_33",
+        "dataset_name": "organcmnist",
+        "model": "alexnet",
+        "private": false,
+        "private_filter": false,
+        "seed": 472168,
+        "split_data": false
     },
     "training": {
-        "num_epochs": 200,
-        "learning_rate": 0.009478653844790382,
-        "l2_regularizer": 0.0009389723136946396,
-        "batch_size": 200,
+        "num_epochs": 2,
+        "learning_rate": 0.0005,
+        "l2_regularizer": 0.0005,
+        "batch_size": 150,
         "selected_labels_old": [
             0,
             1,
             2
         ],
         "selected_labels": [
-            "Indian",
             "Black",
-            "White"
+            "White",
+            "Indian"
         ],
         "balancing_of_labels": [
-            0.01,
-            0.01,
-            0.01
+            0.1
         ]
     },
     "testing": {
-        "test_every": 1
+        "test_every": 4
     },
     "DP": {
-        "max_per_sample_grad_norm": 200000,
+        "max_per_sample_grad_norm": 1e-05,
         "old": 0.343,
-        "sigma_tilde": 10000.614652581338,
+        "sigma_tilde": 1e-30,
         "sigma_tilde_old": 10.614652581338738,
         "T": 400
+    },
+    "Inform":{
+        "remove": true,
+        "idx": 0
     },
     "Paths": {
         "gradient_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results/gradients",
         "stats_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results/stats",
-        "wandb_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/results/wandb/"
+        "wandb_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/results/wandb/",
+        "compare_model_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results/gradients/laplace_29.pkl"
+    },
+    "logging": {
+        "_comment_ever_epoch": [
+            "gradient_df_complete",
+            "losses_df_active",
+            "losses_df_complete",
+            "losses_df_test",
+            "gradients"
+        ],
+        "every_epoch": [],
+        "final": [
+            "model_laplace",
+            "compare_laplace"
+        ]
     }
 }

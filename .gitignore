@@ -162,10 +162,15 @@ cython_debug/
 
 *.out
 *.err
+*.sh
+*.jpg
 FAIRFACE/
 FAIRFACE_old/
 fairface/
 MEDMNIST/
+CIFAR10/
 test.py
 mimic_experiments/results/
 wandb/
+results/
+results_idp/

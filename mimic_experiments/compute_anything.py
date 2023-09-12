@@ -33,7 +33,7 @@ def train_with_params(
         tags=["initial_testing"],
         name=params["model"]["name"],
         entity="jkaiser",
-        settings=wandb.Settings(_service_wait=3000)
+        settings=wandb.Settings(_service_wait=8000)
     )
 
     DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -47,7 +47,7 @@ def train_with_params(
     
     # This train loader is for the full batch and for checking all the individual gradient norms
     if params["model"]["split_data"]:
-        data_set = dataset_class(data_path, train=True, classes=params["training"]["selected_labels"], portions=params["training"]["balancing_of_labels"], shuffle=True)
+        data_set = dataset_class(data_path, train=True, classes=params["training"]["selected_labels"], portions=params["training"]["balancing_of_labels"], shuffle=False)
     else:
         data_set = dataset_class(data_path, train=True)
     train_loader_0 = torch.utils.data.DataLoader(
@@ -58,9 +58,10 @@ def train_with_params(
         pin_memory=False,
     )
 
+
     # This train loader is the one that will be filtered. It will be replaced by a new one at each iteration
     if params["model"]["split_data"]:
-        data_set = dataset_class(data_path, train=True, classes=params["training"]["selected_labels"], portions=params["training"]["balancing_of_labels"], shuffle=True)
+        data_set = dataset_class(data_path, train=True, classes=params["training"]["selected_labels"], portions=params["training"]["balancing_of_labels"], shuffle=False)
     else:
         data_set = dataset_class(data_path, train=True)
     train_loader = torch.utils.data.DataLoader(
@@ -83,6 +84,21 @@ def train_with_params(
         num_workers=0,
         pin_memory=False,
     )
+    if params["Inform"]["remove"] and params["Inform"]["class"]:
+        class_found = False
+        while not class_found:
+            _, label, _, _ = train_loader.__getitem__(params["Inform"]["idx"])
+            if label == params["Inform"]["class"]:
+                class_found = True
+                print(f"found class {params['Inform']['idx']} at index {params['Inform']['class']}")
+                with open(json_file_path, 'w') as file:
+                    json.dump(params, file, indent=4)
+            else:
+                params["Inform"]["idx"] += 1
+    if params["Inform"]["remove"] and params["Inform"]["class"] == None :
+        train_loader_0.dataset.remove_index_from_data(params["Inform"]["idx"])
+        train_loader.dataset.remove_index_from_data(params["Inform"]["idx"])
+
 
 
     train_X_example, _, _, _ = train_loader_0.dataset[0]
@@ -154,39 +170,55 @@ if __name__ == "__main__":
     - edit: json_file_path for config file
     """ 
     os.environ['WANDB_CONFIG_DIR'] = '/vol/aimspace/users/kaiserj/wandb_config/'
-    json_file_path = '/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/params/params.json'
+    json_file_path = '/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/params/'
     """with open('/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/params/params.json', 'r') as file:
         params = json.load(file)
     wandb.login()"""
 
-    with open(json_file_path, 'r') as file:
-        params = json.load(file)
-    params["model"]['name_num'] += 1
-    params["model"]["name"] = params["model"]["name_base"] + str(params["model"]["name_num"])
-    with open(json_file_path, 'w') as file:
-        json.dump(params, file, indent=4)
 
     
 
     parser = argparse.ArgumentParser(description="Process optional float inputs.")
     
-    parser.add_argument("--learning_rate", type=float, default=params["training"]["learning_rate"], help="Value for lerining_rate (optional)")
-    parser.add_argument("--l2_regularizer", type=float, default=params["training"]["l2_regularizer"], help="Value for l2_regularizer (optional)")
-    parser.add_argument("--epochs", type=float, default=params["training"]["num_epochs"], help="Value for num_epochs (optional)")
-    parser.add_argument("--batchsize", type=float, default=params["training"]["batch_size"], help="Value for batch_size (optional)")
-    parser.add_argument("--clip", type=float, default=params["DP"]["max_per_sample_grad_norm"], help="Value for clipping threshold (optional)")
-    parser.add_argument("--model", type=str, default=params["model"]["model"], help="Value for clipping threshold (optional)")
+    parser.add_argument("--learning_rate", type=float, help="Value for lerining_rate (optional)")
+    parser.add_argument("--l2_regularizer", type=float, help="Value for l2_regularizer (optional)")
+    parser.add_argument("--epochs", type=float, help="Value for num_epochs (optional)")
+    parser.add_argument("--batchsize", type=float, help="Value for batch_size (optional)")
+    parser.add_argument("--clip", type=float, help="Value for clipping threshold (optional)")
+    parser.add_argument("--model", type=str, help="Value for clipping threshold (optional)")
     parser.add_argument("--nosave", dest='params["save"]', action='store_false')    
-    parser.add_argument("--balancing", action="store", type=float, nargs="+", default=params["training"]["balancing_of_labels"], help="balancing of the dataset (optional)")
+    parser.add_argument("--balancing", action="store", type=float, nargs="+", help="balancing of the dataset (optional)")
+    parser.add_argument("--params", type=str, default=None, help="Value for clipping threshold (optional)")
     args = parser.parse_args()
 
-    params["training"]["learning_rate"] = args.learning_rate
-    params["training"]["l2_regularizer"] = args.l2_regularizer
-    params["training"]["num_epochs"] = int(args.epochs)
-    params["training"]["batch_size"] = int(args.batchsize)
-    params["DP"]["max_per_sample_grad_norm"] = args.clip
-    params["model"]["model"] = args.model
-    params["training"]["balancing_of_labels"] = args.balancing
+    if args.params != None:
+        json_file_path = os.path.join(json_file_path, str(args.params) + ".json")
+    else:
+        json_file_path = os.path.join(json_file_path, "params.json")
+    with open(json_file_path, 'r') as file:
+        params = json.load(file)
+    params["model"]['name_num'] += 1
+    params["model"]["name"] = params["model"]["name_base"] + str(params["model"]["name_num"])
+    if params["Inform"]["remove"]:
+        params["Inform"]["idx"] +=1
+        params["model"]["name"] = params["model"]["name_base"] + str(params["model"]["name_num"]) + "_remove_idx_" + str(params["Inform"]["idx"])
+    with open(json_file_path, 'w') as file:
+        json.dump(params, file, indent=4)
+
+    if args.learning_rate != None:
+        params["training"]["learning_rate"] = args.learning_rate
+    if args.l2_regularizer != None:
+        params["training"]["l2_regularizer"] = args.l2_regularizer
+    if args.epochs != None:
+        params["training"]["num_epochs"] = int(args.epochs)
+    if args.batchsize != None:
+        params["training"]["batch_size"] = int(args.batchsize)
+    if args.clip != None:
+        params["DP"]["max_per_sample_grad_norm"] = args.clip
+    if args.model != None:
+        params["model"]["model"] = args.model
+    if args.balancing != None:
+        params["training"]["balancing_of_labels"] = args.balancing
 
 
     train_with_params(

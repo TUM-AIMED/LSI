@@ -25,18 +25,30 @@ class Medmnist(Dataset):
         self.transform = transform
         self.labels_str = np.unique(self.labels)
         self.active_indices = np.array(range(len(self.data)))
+
+        if portions == None:
+            len_portions = 0
+        else:
+            len_portions = len(portions)
+        if classes == None:
+            len_classes = 0
+        else:
+            len_classes = len(classes)
         
-        if classes:
+        if len_classes !=  0 and len_portions == len_classes:
             print("Reducing classes")
             self._set_classes(classes)
-        if portions == None:
+        if len_portions == 0:
             print("No Portioning")
-        elif len(portions) == 1 and classes == None:
+        elif len_portions == 1 and len_classes == 0:
             print("Reducing size of Dataset")
             self._apply_reduction(portions)
-        elif portions and len(portions) != len(classes):
-            raise Exception("Number of classes and Portions needs to match")
-        elif portions and len(portions) == len(classes):
+        elif len_portions != len_classes:
+            if len_portions == 1:
+                self._apply_reduction(portions)
+            else:
+                raise Exception("Number of classes and Portions needs to match")
+        elif portions != 0 and len_portions == len_classes:
             print("Applying Class-specific Portioning")
             self._apply_portions(classes, portions)
 
@@ -100,6 +112,13 @@ class Medmnist(Dataset):
         self.data = self.data[remaining_idx]
         self.labels = self.labels[remaining_idx]
         self.active_indices = self.active_indices[remaining_idx]
+
+    def remove_index_from_data(self, base_idx):
+        current_idx = self.active_indices.tolist().index(base_idx)
+        self.data = np.delete(self.data, current_idx, axis=0)
+        self.labels = np.delete(self.labels, current_idx, axis=0)
+        self.active_indices = np.delete(self.active_indices, current_idx, axis=0)
+
         
     def __len__(self):
         return len(self.data)

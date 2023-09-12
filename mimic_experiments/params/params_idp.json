@@ -1,0 +1,72 @@
+{
+    "save": true,
+    "model": {
+        "name_base": "idp_",
+        "name_num": 16,
+        "name": "idp_16",
+        "dataset_name": "cifar10",
+        "model": "alexnet",
+        "private": true,
+        "private_filter": false,
+        "seed": 472168,
+        "split_data": false
+    },
+    "training": {
+        "num_epochs": 20,
+        "learning_rate": 0.0005,
+        "l2_regularizer": 0.0005,
+        "batch_size": 50000,
+        "selected_labels_old": [
+            0,
+            1,
+            2
+        ],
+        "selected_labels": [
+            "Black",
+            "White",
+            "Indian"
+        ],
+        "balancing_of_labels": [
+            0.01
+        ]
+    },
+    "testing": {
+        "test_every": 5
+    },
+    "DP": {
+        "max_per_sample_grad_norm": 1e-05,
+        "old": 0.343,
+        "sigma_tilde": 0.2,
+        "sigma_tilde_old": 10.614652581338738,
+        "T": 400
+    },
+    "Inform": {
+        "remove": false,
+        "idx": 5
+    },
+    "Paths": {
+        "gradient_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_idp/gradients",
+        "stats_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_idp/stats",
+        "wandb_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/results/wandb/",
+        "compare_model_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results/compare/laplace_100.pkl"
+    },
+    "logging": {
+        "_comment_ever_epoch": [
+            "gradient_df_complete",
+            "losses_df_active",
+            "losses_df_complete",
+            "losses_df_test",
+            "gradients"
+        ],
+        "every_epoch": [
+            "gradients_df_complete",
+            "gradients",
+            "losses_df_complete"
+        ],
+        "_comment_final": [
+            "model_laplace",
+            "compare_laplace"
+        ],
+        "final": []
+    }
+}

@@ -8,6 +8,7 @@ from copy import deepcopy
 
 import torch
 import wandb
+import time
 
 
 def test(DEVICE, model, test_set):
@@ -150,6 +151,7 @@ def train(
     recorded_data = []
 
     for epoch in range(1, params["training"]["num_epochs"] + 1):
+        start_epoch = time.time()
         model.train()
         print(epoch, flush=True)
 
@@ -207,6 +209,9 @@ def train(
 
         if epoch % params["testing"]["test_every"] == 0:
             test(DEVICE, model, test_loader)
+        
+        end_epoch = time.time()
+        print(f"Epoch took {end_epoch-start_epoch}")
 
 
     recorded_data.append(log_data_final(params, train_loader_0, model))

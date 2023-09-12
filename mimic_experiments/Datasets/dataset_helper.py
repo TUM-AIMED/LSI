@@ -19,6 +19,9 @@ from Datasets.dataset_medmnist import (Adrenalmnist3d,
                                        Synapsemnist3d, 
                                        Tissuemnist, 
                                        Vesselmnist3d)
+from Datasets.dataset_cifar10 import CIFAR01
+
+
 def get_dataset(keyword):
     if keyword == "diabetes":
         return ValueError("Not implemented on server")
@@ -62,5 +65,7 @@ def get_dataset(keyword):
         return Tissuemnist, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/MEDMNIST"
     elif keyword == "vesselmnist3d":
         return Vesselmnist3d, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/MEDMNIST"
+    elif keyword == "cifar10":
+        return CIFAR01, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/CIFAR10/cifar-10-batches-py"
     else:
         raise ValueError("Invalid keyword. Please provide a valid keyword.")

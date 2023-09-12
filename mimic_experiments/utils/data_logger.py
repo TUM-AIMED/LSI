@@ -17,13 +17,15 @@ def log_data_final(
 ):
     laplace_approx_mean = None
     results_dict = {}
+    if params["Inform"]["remove"]:
+        results_dict["removed_idx"] = params["Inform"]["idx"]
     if "model_laplace" in params["logging"]["final"]:
         laplace_approx_mean, laplace_approx_precision = _create_laplace_approx(model, train_loader)
         results_dict["laplace_approx_mean"] = laplace_approx_mean
         results_dict["laplace_approx_precision"] = laplace_approx_precision
     if "compare_laplace" in params["logging"]["final"]:
         if laplace_approx_mean is not None:
-            mean_KL_divergence_model_vs_compare, mean_KL_divergence_compare_vs_model = _compare_laplace(params, mean=laplace_approx_mean, precision=laplace_approx_precision)
+            mean_KL_divergence_model_vs_compare, mean_KL_divergence_compare_vs_model = _compare_laplace(params, mean1=laplace_approx_mean, precision1=laplace_approx_precision)
         else:
             mean_KL_divergence_model_vs_compare, mean_KL_divergence_compare_vs_model = _compare_laplace(params, model=model, train_loader=train_loader)
         results_dict["mean_KL_divergence_model_vs_compare"] = mean_KL_divergence_model_vs_compare
@@ -225,7 +227,7 @@ def log_realized_gradients(params,
 
     # Train loader returns also indices (vector idx)
     if params["model"]["private"]:
-        with BatchMemoryManager(data_loader=train_loader_0, max_physical_batch_size=5000, optimizer=optimizer) as train_loader_0_new:
+        with BatchMemoryManager(data_loader=train_loader_0, max_physical_batch_size=50, optimizer=optimizer) as train_loader_0_new:
             label_wise_gradients = {}
             label_wise_item_count = {}
             for _, (data, target, idx, _) in enumerate(train_loader_0_new):
@@ -322,6 +324,43 @@ def log_realized_gradients(params,
 
     return 
 
+def compute_very_small_quotient_of_prod_of_lists(l1, l2):
+    
+    if len(l1) != len(l2):
+        raise Exception
+    res1 = 1
+    res2 = 1
+
+    for (c_l1, c_l2) in zip(l1, l2):
+        res1 = res1 * c_l1
+        res2 = res2 * c_l2
+
+        if (res1 > -1e-20 and res1 < 1e-20) or (res2 > -1e-20 and res2 < 1e-20):
+            res1 *= 1e10
+            res2 *= 1e10
+    return res1/res2
+
+
+def computeKL(mean1, mean2, precision1, precision2):
+    inv_precision1 = 1/precision1
+    inv_precision2 = 1/precision2
+
+    mean_difference = mean2 - mean1
+    test1 = np.sum(np.multiply(precision2, inv_precision1)) 
+    test2 = np.sum(np.multiply(mean_difference, np.multiply(precision2, mean_difference)))
+    test4 = np.prod(inv_precision2)
+    test5 = np.prod(inv_precision1)
+    test3 = np.log(compute_very_small_quotient_of_prod_of_lists(inv_precision2, inv_precision1))
+
+    kl = 0.5*(np.sum(np.multiply(precision2, inv_precision1)) 
+              + np.sum(np.multiply(mean_difference, np.multiply(precision2, mean_difference))) 
+              - len(mean1) )
+            #  + np.log(np.prod(inv_precision2)) - np.log(np.prod(inv_precision1)))
+    print(f"test1 {test1}")
+    print(f"test2 {test2}")
+    print(f"len {len(mean1)}")
+    return kl   
+
 def _create_laplace_approx(model, train_loader):
     print("Replacing ReLus inplace variable")
     model.ReLU_inplace_to_False(model.features)
@@ -331,31 +370,29 @@ def _create_laplace_approx(model, train_loader):
     la = Laplace(model, 'classification',
                  subset_of_weights='all',
                  hessian_structure='diag')
-    print(f"fit laplace - laplace creation took {start_time - time.time()}s")
+    print(f"fit laplace - laplace creation took {time.time() - start_time}s")
     start_time = time.time()
     la.fit(train_loader)
-    print(f"computed laplace - laplace fitting took {start_time - time.time()}s")
-    return la.mean, la.posterior_precision
+    print(f"computed laplace - laplace fitting took {time.time() - start_time}s")
+    mean = la.mean.cpu().numpy()
+    post_prec = la.posterior_precision.cpu().numpy()
+    return mean, post_prec
 
 
-def _compare_laplace(params, model=None, train_loader=None, mean=None, precision=None):
-    if mean is None:
-        mean, precision = _create_laplace_approx(model, train_loader)
+def _compare_laplace(params, model=None, train_loader=None, mean1=None, precision1=None):
+    if mean1 is None:
+        mean1, precision1 = _create_laplace_approx(model, train_loader)
     
     compare_path = params["Paths"]["compare_model_path"]
     with open(compare_path, 'rb') as f:
         data = pickle.load(f) 
         data = data[-1]
-        mean_compare = data["laplace_approx_mean"]
-        precision_compare = data["laplace_approx_precision"]
-    
+        mean2 = data["laplace_approx_mean"]
+        precision2 = data["laplace_approx_precision"]
     # KL(model||model_compare)
-    mean_difference = mean_compare - mean
-    weight_wise_KL_divergences_model_vs_compare = 0.5 * (precision_compare/precision + mean_difference * precision_compare * mean_difference - 1 + np.log(precision/precision_compare))
-    mean_KL_divergence_model_vs_compare = np.mean(weight_wise_KL_divergences_model_vs_compare)
-    mean_difference = mean - mean_compare
-    weight_wise_KL_divergences_compare_vs_model = 0.5 * (precision/precision_compare + mean_difference * precision * mean_difference - 1 + np.log(precision_compare/precision))
-    mean_KL_divergence_compare_vs_model = np.mean(weight_wise_KL_divergences_compare_vs_model)
+    kl1 = computeKL(mean1, mean2, precision1, precision2)
+    # KL(model_compare||model)
+    kl2 = computeKL(mean2, mean1, precision2, precision1)
 
-    return mean_KL_divergence_model_vs_compare, mean_KL_divergence_compare_vs_model
+    return kl1, kl2
 
