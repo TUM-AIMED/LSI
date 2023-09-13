@@ -6,8 +6,10 @@ import numpy as np
 import pandas as pd
 import wandb
 import time
+from tqdm import tqdm
 from opacus.utils.batch_memory_manager import BatchMemoryManager
 from laplace import Laplace
+from utils.helper import laplace_backed_helper, representation_helper
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 def log_data_final(
@@ -20,7 +22,7 @@ def log_data_final(
     if params["Inform"]["remove"]:
         results_dict["removed_idx"] = params["Inform"]["idx"]
     if "model_laplace" in params["logging"]["final"]:
-        laplace_approx_mean, laplace_approx_precision = _create_laplace_approx(model, train_loader)
+        laplace_approx_mean, laplace_approx_precision = _create_laplace_approx(params, model, train_loader)
         results_dict["laplace_approx_mean"] = laplace_approx_mean
         results_dict["laplace_approx_precision"] = laplace_approx_precision
     if "compare_laplace" in params["logging"]["final"]:
@@ -227,17 +229,20 @@ def log_realized_gradients(params,
 
     # Train loader returns also indices (vector idx)
     if params["model"]["private"]:
+        print("here2")
         with BatchMemoryManager(data_loader=train_loader_0, max_physical_batch_size=50, optimizer=optimizer) as train_loader_0_new:
+            print("here3")
             label_wise_gradients = {}
             label_wise_item_count = {}
             for _, (data, target, idx, _) in enumerate(train_loader_0_new):
+                print("here4")
                 # print(idx[0])
                 data, target = data.to(DEVICE), target.to(DEVICE)
                 optimizer.zero_grad()
                 output = model(data)
                 loss = criterion(output, target)
                 loss.backward()
-
+                print("here5")
                 batch_grad_norms = torch.zeros(len(target)).to(DEVICE)
                 # Clip each parameter's per-sample gradient
                 for (ii, p) in enumerate(model.parameters()):
@@ -324,52 +329,49 @@ def log_realized_gradients(params,
 
     return 
 
-def compute_very_small_quotient_of_prod_of_lists(l1, l2):
-    
-    if len(l1) != len(l2):
-        raise Exception
-    res1 = 1
-    res2 = 1
 
-    for (c_l1, c_l2) in zip(l1, l2):
-        res1 = res1 * c_l1
-        res2 = res2 * c_l2
+def compute_log_det(diag_array):
+    chunk_size = 1000
 
-        if (res1 > -1e-20 and res1 < 1e-20) or (res2 > -1e-20 and res2 < 1e-20):
-            res1 *= 1e10
-            res2 *= 1e10
-    return res1/res2
+    # Initialize an empty list to store the chunks
+    det = []
+
+    # Iterate through the array in chunks of size 100
+    for i in range(0, len(diag_array), chunk_size):
+        chunk = diag_array[i:i+chunk_size]
+        det.append(np.linalg.slogdet(np.diag(chunk))[1])
+
+    # Handle the remaining elements (if any)
+    remainder = diag_array[len(det) * chunk_size:]
+    det.append(np.linalg.slogdet(np.diag(remainder))[1])
+
+    return np.sum(det)
 
 
 def computeKL(mean1, mean2, precision1, precision2):
     inv_precision1 = 1/precision1
     inv_precision2 = 1/precision2
-
     mean_difference = mean2 - mean1
-    test1 = np.sum(np.multiply(precision2, inv_precision1)) 
-    test2 = np.sum(np.multiply(mean_difference, np.multiply(precision2, mean_difference)))
-    test4 = np.prod(inv_precision2)
-    test5 = np.prod(inv_precision1)
-    test3 = np.log(compute_very_small_quotient_of_prod_of_lists(inv_precision2, inv_precision1))
-
     kl = 0.5*(np.sum(np.multiply(precision2, inv_precision1)) 
               + np.sum(np.multiply(mean_difference, np.multiply(precision2, mean_difference))) 
-              - len(mean1) )
-            #  + np.log(np.prod(inv_precision2)) - np.log(np.prod(inv_precision1)))
-    print(f"test1 {test1}")
-    print(f"test2 {test2}")
-    print(f"len {len(mean1)}")
+              - len(mean1) 
+              + compute_log_det(inv_precision2) - compute_log_det(inv_precision1))
     return kl   
 
-def _create_laplace_approx(model, train_loader):
+def _create_laplace_approx(params, model, train_loader):
     print("Replacing ReLus inplace variable")
     model.ReLU_inplace_to_False(model.features)
     model = model.features
     start_time = time.time()
     print("create laplace")
+    backend_class = laplace_backed_helper(params["Inform"]["approximation"])
+    representation = representation_helper(params["Inform"]["representation"])
+    if params["Inform"]["representation"] != "diag":
+        raise Exception("Determinante Computation only works for diagonal representation at the moment")
     la = Laplace(model, 'classification',
                  subset_of_weights='all',
-                 hessian_structure='diag')
+                 hessian_structure=representation,
+                 backend=backend_class)
     print(f"fit laplace - laplace creation took {time.time() - start_time}s")
     start_time = time.time()
     la.fit(train_loader)
@@ -381,7 +383,7 @@ def _create_laplace_approx(model, train_loader):
 
 def _compare_laplace(params, model=None, train_loader=None, mean1=None, precision1=None):
     if mean1 is None:
-        mean1, precision1 = _create_laplace_approx(model, train_loader)
+        mean1, precision1 = _create_laplace_approx(params, model, train_loader)
     
     compare_path = params["Paths"]["compare_model_path"]
     with open(compare_path, 'rb') as f:

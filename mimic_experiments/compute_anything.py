@@ -19,7 +19,8 @@ import wandb
 
 
 def train_with_params(
-    params : dict
+    params : dict,
+    json_file_path
 ):
     """
     train_with_params initializes the main training parts (model, criterion, optimizer and makes private)
@@ -101,7 +102,7 @@ def train_with_params(
         train_loader.dataset.remove_index_from_data(params["Inform"]["idx"])
 
 
-
+    print("here-2")
     train_X_example, _, _, _ = train_loader_0.dataset[0]
     N = len(train_loader_0.dataset)
 
@@ -115,14 +116,18 @@ def train_with_params(
     else:
         model = model_class(len(train_X_example), N_CLASSES).to(DEVICE)
 
-    criterion = torch.nn.CrossEntropyLoss()
+    if params["model"]["ELU"]:
+        model.replace_all_relu_with_elu()
 
+    criterion = torch.nn.CrossEntropyLoss()
+    print("here-1")
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=params["training"]["learning_rate"],
         weight_decay=params["training"]["l2_regularizer"],
     )
 
+    print("priv")
     privacy_engine = None
     if params["model"]["private"]:
         secure_rng = False   
@@ -136,7 +141,7 @@ def train_with_params(
             max_grad_norm=params["DP"]["max_per_sample_grad_norm"],
             poisson_sampling=False,
         )
-    
+    print("after_priv")
     if not os.path.exists(params["Paths"]["gradient_save_path"]):
         os.makedirs(params["Paths"]["gradient_save_path"])
     if not os.path.exists(params["Paths"]["stats_save_path"]):
@@ -176,8 +181,6 @@ if __name__ == "__main__":
         params = json.load(file)
     wandb.login()"""
 
-
-    
 
     parser = argparse.ArgumentParser(description="Process optional float inputs.")
     
@@ -221,7 +224,9 @@ if __name__ == "__main__":
     if args.balancing != None:
         params["training"]["balancing_of_labels"] = args.balancing
 
+    print("main")
 
     train_with_params(
-        params
+        params,
+        json_file_path
     )

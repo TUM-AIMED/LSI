@@ -174,3 +174,4 @@ mimic_experiments/results/
 wandb/
 results/
 results_idp/
+results_fixed/

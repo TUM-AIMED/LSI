@@ -32,5 +32,6 @@ if __name__ == "__main__":
         with open(json_file_path, 'w') as file:
             json.dump(params, file, indent=4)
         train_with_params(
-            params
+            params,
+            json_file_path
         )

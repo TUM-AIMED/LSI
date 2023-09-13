@@ -2,9 +2,9 @@
     "save": true,
     "model": {
         "name_base": "laplace_",
-        "name_num": 33,
-        "name": "laplace_33",
-        "dataset_name": "organcmnist",
+        "name_num": 442,
+        "name": "laplace_442_remove_idx_1481",
+        "dataset_name": "cifar10",
         "model": "alexnet",
         "private": false,
         "private_filter": false,
@@ -12,10 +12,10 @@
         "split_data": false
     },
     "training": {
-        "num_epochs": 2,
+        "num_epochs": 10,
         "learning_rate": 0.0005,
         "l2_regularizer": 0.0005,
-        "batch_size": 150,
+        "batch_size": 500,
         "selected_labels_old": [
             0,
             1,
@@ -27,11 +27,11 @@
             "Indian"
         ],
         "balancing_of_labels": [
-            0.1
+            0.01
         ]
     },
     "testing": {
-        "test_every": 4
+        "test_every": 5
     },
     "DP": {
         "max_per_sample_grad_norm": 1e-05,
@@ -40,15 +40,16 @@
         "sigma_tilde_old": 10.614652581338738,
         "T": 400
     },
-    "Inform":{
+    "Inform": {
         "remove": true,
-        "idx": 0
+        "idx": 1481,
+        "class": 0
     },
     "Paths": {
         "gradient_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results/gradients",
         "stats_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results/stats",
         "wandb_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/results/wandb/",
-        "compare_model_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results/gradients/laplace_29.pkl"
+        "compare_model_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results/compare/laplace_126.pkl"
     },
     "logging": {
         "_comment_ever_epoch": [
@@ -59,6 +60,10 @@
             "gradients"
         ],
         "every_epoch": [],
+        "_comment_final": [
+            "model_laplace",
+            "compare_laplace"
+        ],
         "final": [
             "model_laplace",
             "compare_laplace"

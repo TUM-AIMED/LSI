@@ -33,8 +33,17 @@ class AlexNetWrapper(nn.Module):
 
     def ReLU_inplace_to_False(self, features):
         for layer in features._modules.values():
-            if isinstance(layer, nn.ReLU):
-                print(layer.inplace)
+            if isinstance(layer, nn.ReLU) or isinstance(layer, nn.ELU):
                 layer.inplace = False
-                print(layer.inplace)
             self.ReLU_inplace_to_False(layer)
+
+    def replace_relu_with_elu(self, module):
+        for name, child in module.named_children():
+            if isinstance(child, nn.ReLU):
+                setattr(module, name, nn.ELU(inplace=True))
+            else:
+                self.replace_relu_with_elu(child)
+
+    def replace_all_relu_with_elu(self):
+        self.replace_relu_with_elu(self.features)
+        return 

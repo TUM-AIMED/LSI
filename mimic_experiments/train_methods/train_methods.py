@@ -150,11 +150,11 @@ def train(
     grad_norms = torch.zeros(N).to(DEVICE)
     recorded_data = []
 
+    print("here")
     for epoch in range(1, params["training"]["num_epochs"] + 1):
         start_epoch = time.time()
         model.train()
         print(epoch, flush=True)
-
         if params["model"]["private_filter"]:
             train_loader_active = determine_active_set(params,
                             model,
@@ -184,7 +184,7 @@ def train(
                             grad_norms,
                             budget,
                             N)
-        print(len(train_loader_active.dataset))
+        print(len(train_loader_active.dataset), flush=True)
         normal_train_step(params,
                model, 
                optimizer, 

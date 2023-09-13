@@ -1,9 +1,9 @@
 {
     "save": true,
     "model": {
-        "name_base": "idp_",
-        "name_num": 16,
-        "name": "idp_16",
+        "name_base": "idp_try_2",
+        "name_num": 4,
+        "name": "idp_try_24",
         "dataset_name": "cifar10",
         "model": "alexnet",
         "private": true,
@@ -34,7 +34,7 @@
         "test_every": 5
     },
     "DP": {
-        "max_per_sample_grad_norm": 1e-05,
+        "max_per_sample_grad_norm": 5e-05,
         "old": 0.343,
         "sigma_tilde": 0.2,
         "sigma_tilde_old": 10.614652581338738,
@@ -42,13 +42,14 @@
     },
     "Inform": {
         "remove": false,
-        "idx": 5
+        "idx": 344,
+        "class": 0
     },
     "Paths": {
         "gradient_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_idp/gradients",
         "stats_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_idp/stats",
         "wandb_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/results/wandb/",
-        "compare_model_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results/compare/laplace_100.pkl"
+        "compare_model_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results/compare/laplace_126.pkl"
     },
     "logging": {
         "_comment_ever_epoch": [
@@ -58,11 +59,7 @@
             "losses_df_test",
             "gradients"
         ],
-        "every_epoch": [
-            "gradients_df_complete",
-            "gradients",
-            "losses_df_complete"
-        ],
+        "every_epoch": [],
         "_comment_final": [
             "model_laplace",
             "compare_laplace"
