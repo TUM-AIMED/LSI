@@ -6,9 +6,9 @@
             "name": "Current_compute_file",
             "type": "python",
             "request": "launch",
-            "program": "${file}",
+            "program": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/compute_anything.py",
             "console": "integratedTerminal",
-            "args" : ["--model", "alexnet"], 
+            "args" : ["--model", "mlp"], 
             "justMyCode": false
         },
         {

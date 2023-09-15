@@ -10,14 +10,11 @@ import sklearn
 import cv2
 import pickle
 
-class CIFAR10(Dataset):
-    def __init__(self, data_path, train=True, classes=None, portions=None, transform=None, shuffle=False, resize = None):
+class CIFAR100(Dataset):
+    def __init__(self, data_path, train=True, classes=None, portions=None, transform=None, shuffle=False):
         self.root_dir = data_path
-        self.resize = False
-        if resize != None:
-            self.resize = resize
-        data_files = ["data_batch_1", "data_batch_2", "data_batch_3", "data_batch_4", "data_batch_5"]
-        test_files = ["test_batch"]
+        data_files = ["train"]
+        test_files = ["test"]
         data = []
         labels = []
 
@@ -27,14 +24,14 @@ class CIFAR10(Dataset):
                 with open(file, 'rb') as fo:
                     data_dict = pickle.load(fo, encoding='bytes')
                     data.extend(data_dict [b'data'])
-                    labels.extend(data_dict [b'labels'])
+                    labels.extend(data_dict [b'fine_labels'])
         else:
             for file_name in test_files:
                 file = os.path.join(data_path, file_name)
                 with open(file, 'rb') as fo:
                     data_dict  = pickle.load(fo, encoding='bytes')
                     data.extend(data_dict [b'data'])
-                    labels.extend(data_dict [b'labels'])            
+                    labels.extend(data_dict [b'fine_labels'])            
 
         self.data = np.array(data)
         self.data = self.data.reshape((self.data.shape[0], 3, 32, 32))
@@ -147,8 +144,7 @@ class CIFAR10(Dataset):
         if len(image.shape) == 2:
             image = np.stack([image] * 3, axis=0)
         image = image.transpose(1, 2, 0)
-        if self.resize:
-            image = cv2.resize(image, (224, 224), interpolation=cv2.INTER_LINEAR)
+        image = cv2.resize(image, (224, 224), interpolation=cv2.INTER_LINEAR)
         transform = transforms.ToTensor()
         tensor_image = transform(image)
         attributes = torch.empty((2,3), dtype=torch.int64)

@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import wandb
 import time
+from Datasets.dataset_helper import get_dataset
 from tqdm import tqdm
 from opacus.utils.batch_memory_manager import BatchMemoryManager
 from laplace import Laplace
@@ -32,7 +33,16 @@ def log_data_final(
             mean_KL_divergence_model_vs_compare, mean_KL_divergence_compare_vs_model = _compare_laplace(params, model=model, train_loader=train_loader)
         results_dict["mean_KL_divergence_model_vs_compare"] = mean_KL_divergence_model_vs_compare
         results_dict["mean_KL_divergence_compare_vs_model"] = mean_KL_divergence_compare_vs_model
-
+    if "get_accuracies" in params["logging"]["final"]:
+        idx_list, accuracies = get_accuracies(model, train_loader)
+        results_dict["accuracies_idx_list"] = idx_list
+        results_dict["per_idx_accuracies"] = accuracies
+    if "get_idx_accuracy" in params["logging"]["final"]:
+        idx, accuracy, label = get_idx_accuracy(params, model)
+        idx_list, accuracies = get_accuracies(model, train_loader)
+        results_dict["idx"] = idx
+        results_dict["accuracy"] = accuracy
+        results_dict["label"] = accuracy
     return results_dict
 
 
@@ -92,7 +102,6 @@ def log_data_epoch(
             results_dict["test_loss"] = losses_df_test
 
     return results_dict
-
 
 def save_data_to_pickle(params, results_dict: dict):
     path = params["Paths"]["gradient_save_path"]
@@ -330,22 +339,33 @@ def log_realized_gradients(params,
     return 
 
 
+def get_accuracies(model, train_loader):
+    model.eval()
+    output_list = []
+    idx_list = []
+    for _, (data, target, idx, _) in enumerate(train_loader):
+        data, target = data.to(DEVICE), target.to(DEVICE)
+        output = model(data)
+        output_list.append(output)
+        idx_list.append(idx)
+    return np.array(idx_list), np.array(output_list)
+
+
+def get_idx_accuracy(params, model):
+    dataset_class, data_path = get_dataset(params["model"]["dataset_name"])
+    if params["model"]["split_data"]:
+        data_set = dataset_class(data_path, train=True, classes=params["training"]["selected_labels"], portions=params["training"]["balancing_of_labels"], shuffle=False)
+    else:
+        data_set = dataset_class(data_path, train=True)
+
+    x, y, idx, _ = data_set.__getitem__(idx)
+    output = model(x)
+    return idx, output, y
+
+
 def compute_log_det(diag_array):
-    chunk_size = 1000
-
-    # Initialize an empty list to store the chunks
-    det = []
-
-    # Iterate through the array in chunks of size 100
-    for i in range(0, len(diag_array), chunk_size):
-        chunk = diag_array[i:i+chunk_size]
-        det.append(np.linalg.slogdet(np.diag(chunk))[1])
-
-    # Handle the remaining elements (if any)
-    remainder = diag_array[len(det) * chunk_size:]
-    det.append(np.linalg.slogdet(np.diag(remainder))[1])
-
-    return np.sum(det)
+    det = np.sum(np.log(diag_array))
+    return det
 
 
 def computeKL(mean1, mean2, precision1, precision2):

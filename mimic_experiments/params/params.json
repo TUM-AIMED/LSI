@@ -2,10 +2,10 @@
     "save": true,
     "model": {
         "name_base": "laplace_",
-        "name_num": 466,
-        "name": "laplace_466_remove_idx_30",
+        "name_num": 1219,
+        "name": "laplace_1219_remove_idx_1463",
         "dataset_name": "cifar10",
-        "model": "alexnet",
+        "model": "mlp",
         "private": false,
         "private_filter": false,
         "seed": 472168,
@@ -13,9 +13,9 @@
         "ELU": false
     },
     "training": {
-        "num_epochs": 10,
-        "learning_rate": 0.0005,
-        "l2_regularizer": 0.0005,
+        "num_epochs": 200,
+        "learning_rate": 1e-05,
+        "l2_regularizer": 0.0001,
         "batch_size": 500,
         "selected_labels_old": [
             0,
@@ -28,11 +28,11 @@
             "Indian"
         ],
         "balancing_of_labels": [
-            0.01
+            0.04
         ]
     },
     "testing": {
-        "test_every": 5
+        "test_every": 120
     },
     "DP": {
         "max_per_sample_grad_norm": 1e-05,
@@ -43,16 +43,18 @@
     },
     "Inform": {
         "remove": true,
-        "idx": 30,
+        "reorder": true,
+        "idx": 1463,
         "class": 0,
         "approximation": "AsdlGGN",
-        "representation": "diag"
+        "representation": "diag",
+        "firstbatchnum": 0
     },
     "Paths": {
-        "gradient_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_fixed/gradients",
-        "stats_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_fixed/stats",
+        "gradient_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_full_mlp3/gradients",
+        "stats_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_full_mlp3/stats",
         "wandb_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/results/wandb/",
-        "compare_model_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_fixed/compare/laplace_463.pkl"
+        "compare_model_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_full_mlp3/compare/laplace_1069.pkl"
     },
     "logging": {
         "_comment_ever_epoch": [
@@ -65,7 +67,9 @@
         "every_epoch": [],
         "_comment_final": [
             "model_laplace",
-            "compare_laplace"
+            "compare_laplace",
+            "get_accuracies",
+            "get_idx_accuracy"
         ],
         "final": [
             "model_laplace",

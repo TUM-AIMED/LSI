@@ -1,3 +1,5 @@
+import torch
+from torch.utils.data import DataLoader
 from Datasets.dataset_diabetes import DiabetesDataset
 from Datasets.dataset_fairface import FairfaceDataset
 from Datasets.dataset_mnist_unbalanced import MNISTDataset
@@ -19,7 +21,8 @@ from Datasets.dataset_medmnist import (Adrenalmnist3d,
                                        Synapsemnist3d, 
                                        Tissuemnist, 
                                        Vesselmnist3d)
-from Datasets.dataset_cifar10 import CIFAR01
+from Datasets.dataset_cifar10 import CIFAR10
+from Datasets.dataset_cifar100 import CIFAR100
 
 
 def get_dataset(keyword):
@@ -66,6 +69,23 @@ def get_dataset(keyword):
     elif keyword == "vesselmnist3d":
         return Vesselmnist3d, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/MEDMNIST"
     elif keyword == "cifar10":
-        return CIFAR01, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/CIFAR10/cifar-10-batches-py"
+        return CIFAR10, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/CIFAR10/cifar-10-batches-py"
+    elif keyword == "cifar100":
+        return CIFAR100, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/CIFAR100/cifar-100-python"
     else:
         raise ValueError("Invalid keyword. Please provide a valid keyword.")
+    
+
+
+class CustomDataLoader(DataLoader):
+    def __init__(self, dataset, firstbatchnum=None, *args, **kwargs):
+        super().__init__(dataset, *args, **kwargs)
+        if firstbatchnum is None:
+            self.batch_order = list(range(len(self)))
+        else:
+            batch_order = list(range(len(self)))
+            [batch_order[firstbatchnum]] + batch_order[:firstbatchnum] + batch_order[firstbatchnum+1:]
+            self.batch_order = batch_order
+
+    def __iter__(self):
+        return iter(self.batch_order)

@@ -12,7 +12,7 @@ class AlexNetWrapper(nn.Module):
         self.avgpool = nn.AdaptiveAvgPool2d((6, 6))
         self.flatten = nn.Flatten()
         self.classifier = nn.Linear(256 * 6 * 6, num_classes)
-
+        
         self.features = nn.Sequential(self.features, self.avgpool, self.flatten, self.classifier)
 
     def forward(self, x):
