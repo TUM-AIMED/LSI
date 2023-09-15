@@ -80,6 +80,64 @@ def normal_train_step(params,
             print(f"training accuracy {accuracy}")
             wandb.log({"train_accuracy": accuracy})
             wandb.log({"loss": sum(loss_list)})
+    elif not params["model"]["private"] and params["Inform"]["remove"]:
+        batchsize = params["training"]["batch_size"]
+        iteration_containing_dropped_idx = int(params["Inform"]["idx"]/batchsize)
+        dataset = train_loader_active.dataset
+        dataset_pre = deepcopy(dataset)
+        dataset_mid = deepcopy(dataset)
+        dataset_aft = deepcopy(dataset)
+        pre = [*range(0, iteration_containing_dropped_idx * batchsize, 1)]
+        mid = [*range(iteration_containing_dropped_idx * batchsize, (iteration_containing_dropped_idx + 1) * batchsize - 1)]
+        aft = [*range((iteration_containing_dropped_idx + 1) * batchsize - 1, len(dataset.data))]
+        dataset_pre.reduce_to_active(pre)
+        dataset_mid.reduce_to_active(mid)
+        dataset_aft.reduce_to_active(aft)
+        train_loader_pre = torch.utils.data.DataLoader(dataset_pre, batch_size=params["training"]["batch_size"], shuffle=False, num_workers=0, pin_memory=False)
+        train_loader_mid = torch.utils.data.DataLoader(dataset_mid, batch_size=params["training"]["batch_size"] - 1, shuffle=False, num_workers=0, pin_memory=False)
+        train_loader_aft = torch.utils.data.DataLoader(dataset_aft, batch_size=params["training"]["batch_size"], shuffle=False, num_workers=0, pin_memory=False)
+        loss_list = []
+        for _, (data, target, idx, _) in enumerate(train_loader_pre):
+            data, target = data.to(DEVICE), target.to(DEVICE)
+            optimizer.zero_grad()
+
+            output = model(data)
+            loss = criterion(output, target)
+            loss_list.append(loss)
+            _, predicted = torch.max(output.data, 1)
+            total += target.size(0)
+            correct += (predicted == target).sum().item()
+            loss.backward()
+            optimizer.step()
+        for _, (data, target, idx, _) in enumerate(train_loader_mid):
+            data, target = data.to(DEVICE), target.to(DEVICE)
+            optimizer.zero_grad()
+
+            output = model(data)
+            loss = criterion(output, target)
+            loss_list.append(loss)
+            _, predicted = torch.max(output.data, 1)
+            total += target.size(0)
+            correct += (predicted == target).sum().item()
+            loss.backward()
+            optimizer.step()
+        for _, (data, target, idx, _) in enumerate(train_loader_aft):
+            data, target = data.to(DEVICE), target.to(DEVICE)
+            optimizer.zero_grad()
+
+            output = model(data)
+            loss = criterion(output, target)
+            loss_list.append(loss)
+            _, predicted = torch.max(output.data, 1)
+            total += target.size(0)
+            correct += (predicted == target).sum().item()
+            loss.backward()
+            optimizer.step()
+        accuracy = correct/total
+        print(f"training accuracy {accuracy}")
+        wandb.log({"train_accuracy": accuracy})
+        wandb.log({"loss": sum(loss_list)})
+
     else:
         loss_list = []
         train_loader_new = train_loader_active
