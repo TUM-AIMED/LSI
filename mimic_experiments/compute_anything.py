@@ -3,7 +3,7 @@ import os
 
 
 from models.model_helper import get_model
-from Datasets.dataset_helper import get_dataset
+from Datasets.dataset_helper import get_dataset, CustomDataLoader
 from train_methods.train_methods import train
 from opacus.validators.module_validator import ModuleValidator
 
@@ -51,27 +51,34 @@ def train_with_params(
         data_set = dataset_class(data_path, train=True, classes=params["training"]["selected_labels"], portions=params["training"]["balancing_of_labels"], shuffle=False)
     else:
         data_set = dataset_class(data_path, train=True)
-    train_loader_0 = torch.utils.data.DataLoader(
-        data_set,
-        batch_size=params["training"]["batch_size"],
-        shuffle=False,
-        num_workers=0,
-        pin_memory=False,
-    )
-
-
-    # This train loader is the one that will be filtered. It will be replaced by a new one at each iteration
-    if params["model"]["split_data"]:
-        data_set = dataset_class(data_path, train=True, classes=params["training"]["selected_labels"], portions=params["training"]["balancing_of_labels"], shuffle=False)
+    if params["Inform"]["remove"] and params["Inform"]["class"] != None:
+        class_found = False
+        while not class_found:
+            _, label, _, _ = data_set.__getitem__(params["Inform"]["idx"])
+            if label == params["Inform"]["class"]:
+                class_found = True
+                print(f"found class {params['Inform']['class']} at index {params['Inform']['idx']}")
+                params["model"]["name"] = params["model"]["name_base"] + str(params["model"]["name_num"]) + "_remove_idx_" + str(params["Inform"]["idx"])
+                with open(json_file_path, 'w') as file:
+                    json.dump(params, file, indent=4)
+            else:
+                params["Inform"]["idx"] += 1
+    if params["Inform"]["remove"]:
+        data_set.remove_index_from_data(params["Inform"]["idx"])
+    if params["Inform"]["remove"] and params["Inform"]["reorder"]:
+        params["Inform"]["firstbatchnum"] = int(params["Inform"]["idx"] / params["training"]["batch_size"])
     else:
-        data_set = dataset_class(data_path, train=True)
-    train_loader = torch.utils.data.DataLoader(
+        params["Inform"]["firstbatchnum"] = None
+
+    train_loader_0 = CustomDataLoader(
         data_set,
+        firstbatchnum = params["Inform"]["firstbatchnum"],
         batch_size=params["training"]["batch_size"],
         shuffle=False,
         num_workers=0,
         pin_memory=False,
     )
+
 
     # This loader contains the data of the test datset
     if params["model"]["split_data"]:
@@ -85,28 +92,13 @@ def train_with_params(
         num_workers=0,
         pin_memory=False,
     )
-    if params["Inform"]["remove"] and params["Inform"]["class"] != None:
-        class_found = False
-        while not class_found:
-            _, label, _, _ = train_loader.dataset.__getitem__(params["Inform"]["idx"])
-            if label == params["Inform"]["class"]:
-                class_found = True
-                print(f"found class {params['Inform']['class']} at index {params['Inform']['idx']}")
-                params["model"]["name"] = params["model"]["name_base"] + str(params["model"]["name_num"]) + "_remove_idx_" + str(params["Inform"]["idx"])
-                with open(json_file_path, 'w') as file:
-                    json.dump(params, file, indent=4)
-            else:
-                params["Inform"]["idx"] += 1
-    if params["Inform"]["remove"]:
-        train_loader_0.dataset.remove_index_from_data(params["Inform"]["idx"])
-        train_loader.dataset.remove_index_from_data(params["Inform"]["idx"])
 
 
     print("here-2")
     train_X_example, _, _, _ = train_loader_0.dataset[0]
     N = len(train_loader_0.dataset)
 
-    N_CLASSES =  len(np.unique(train_loader.dataset.labels))
+    N_CLASSES =  len(np.unique(train_loader_0.dataset.labels))
 
     if N < params["training"]["batch_size"]:
         raise Exception(f"Batchsize of {params['training']['batch_size']} is larger than the size of the dataset of {N}")
@@ -114,7 +106,7 @@ def train_with_params(
     if params["model"]["private"]:
         model = ModuleValidator.fix_and_validate(model_class(len(train_X_example), N_CLASSES).to(DEVICE))
     else:
-        model = model_class(len(train_X_example), N_CLASSES).to(DEVICE)
+        model = model_class(len(torch.flatten(train_X_example)), N_CLASSES).to(DEVICE)
 
     if params["model"]["ELU"]:
         model.replace_all_relu_with_elu()
