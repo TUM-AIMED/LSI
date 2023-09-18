@@ -34,7 +34,8 @@ def train_with_params(
         tags=["initial_testing"],
         name=params["model"]["name"],
         entity="jkaiser",
-        settings=wandb.Settings(_service_wait=8000)
+        settings=wandb.Settings(_service_wait=8000),
+        mode="disabled"
     )
 
     DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -51,6 +52,7 @@ def train_with_params(
         data_set = dataset_class(data_path, train=True, classes=params["training"]["selected_labels"], portions=params["training"]["balancing_of_labels"], shuffle=False)
     else:
         data_set = dataset_class(data_path, train=True)
+    
     if params["Inform"]["remove"] and params["Inform"]["class"] != None:
         class_found = False
         while not class_found:
@@ -65,14 +67,24 @@ def train_with_params(
                 params["Inform"]["idx"] += 1
     if params["Inform"]["remove"]:
         data_set.remove_index_from_data(params["Inform"]["idx"])
+        print(f'Remove index {params["Inform"]["idx"]}')
+    
     if params["Inform"]["remove"] and params["Inform"]["reorder"]:
         params["Inform"]["firstbatchnum"] = int(params["Inform"]["idx"] / params["training"]["batch_size"])
-    else:
-        params["Inform"]["firstbatchnum"] = None
+        compare_folder = params["Paths"]["compare_model_path_base"] + str(params["Inform"]["firstbatchnum"]) + ".pkl"
+        for file_name in os.listdir(compare_folder):
+            params["Paths"]["compare_model_path"] = os.path.join(compare_folder, file_name)
+        print(f'Reordering batches with batch {params["Inform"]["firstbatchnum"]} at first with idx {params["Inform"]["idx"]}')
+        print(f'Will compare to {params["Paths"]["compare_model_path"]}')
 
-    train_loader_0 = CustomDataLoader(
+
+    if params["Inform"]["reorder"]:
+        data_set.batchwise_reorder(params["training"]["batch_size"], params["Inform"]["firstbatchnum"], remove=True)
+        print(f'Reordering batches with batch {params["Inform"]["firstbatchnum"]}')
+        
+
+    train_loader_0 = torch.utils.data.DataLoader(
         data_set,
-        firstbatchnum = params["Inform"]["firstbatchnum"],
         batch_size=params["training"]["batch_size"],
         shuffle=False,
         num_workers=0,
@@ -94,7 +106,6 @@ def train_with_params(
     )
 
 
-    print("here-2")
     train_X_example, _, _, _ = train_loader_0.dataset[0]
     N = len(train_loader_0.dataset)
 
@@ -103,23 +114,21 @@ def train_with_params(
     if N < params["training"]["batch_size"]:
         raise Exception(f"Batchsize of {params['training']['batch_size']} is larger than the size of the dataset of {N}")
     
-    if params["model"]["private"]:
-        model = ModuleValidator.fix_and_validate(model_class(len(train_X_example), N_CLASSES).to(DEVICE))
+    if params["model"]["model"] == "mlp":
+        model = ModuleValidator.fix_and_validate(model_class(len(torch.flatten(train_X_example)), N_CLASSES).to(DEVICE))
     else:
-        model = model_class(len(torch.flatten(train_X_example)), N_CLASSES).to(DEVICE)
+        model = ModuleValidator.fix_and_validate(model_class(len(train_X_example), N_CLASSES).to(DEVICE))
 
     if params["model"]["ELU"]:
         model.replace_all_relu_with_elu()
 
     criterion = torch.nn.CrossEntropyLoss()
-    print("here-1")
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=params["training"]["learning_rate"],
         weight_decay=params["training"]["l2_regularizer"],
     )
 
-    print("priv")
     privacy_engine = None
     if params["model"]["private"]:
         secure_rng = False   
@@ -133,7 +142,11 @@ def train_with_params(
             max_grad_norm=params["DP"]["max_per_sample_grad_norm"],
             poisson_sampling=False,
         )
-    print("after_priv")
+
+        # this is used for computing individual privacy with estimates of gradient norms
+        idp_accoutant = PrivacyLossTracker(n_training, args.batchsize, noise_multiplier, init_norm=args.clip, delta=args.delta, rounding=args.rounding)
+        idp_accoutant.update_rdp()
+
     if not os.path.exists(params["Paths"]["gradient_save_path"]):
         os.makedirs(params["Paths"]["gradient_save_path"])
     if not os.path.exists(params["Paths"]["stats_save_path"]):

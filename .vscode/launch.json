@@ -8,7 +8,7 @@
             "request": "launch",
             "program": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/compute_anything.py",
             "console": "integratedTerminal",
-            "args" : ["--model", "mlp"], 
+            "args" : ["--params", "params_idp"], 
             "justMyCode": false
         },
         {

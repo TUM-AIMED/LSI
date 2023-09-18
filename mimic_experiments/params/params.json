@@ -2,8 +2,8 @@
     "save": true,
     "model": {
         "name_base": "laplace_",
-        "name_num": 1219,
-        "name": "laplace_1219_remove_idx_1463",
+        "name_num": 1586,
+        "name": "laplace_1586_remove_idx_2613",
         "dataset_name": "cifar10",
         "model": "mlp",
         "private": false,
@@ -32,7 +32,7 @@
         ]
     },
     "testing": {
-        "test_every": 120
+        "test_every": 100
     },
     "DP": {
         "max_per_sample_grad_norm": 1e-05,
@@ -44,17 +44,18 @@
     "Inform": {
         "remove": true,
         "reorder": true,
-        "idx": 1463,
+        "idx": 2613,
         "class": 0,
         "approximation": "AsdlGGN",
         "representation": "diag",
         "firstbatchnum": 0
     },
     "Paths": {
-        "gradient_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_full_mlp3/gradients",
-        "stats_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_full_mlp3/stats",
+        "gradient_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_reorder/gradients",
+        "stats_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_reorder/stats",
         "wandb_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/results/wandb/",
-        "compare_model_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_full_mlp3/compare/laplace_1069.pkl"
+        "compare_model_path_base": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_reorder/compare/compare_",
+        "compare_model_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_reorder/compare/compare_"
     },
     "logging": {
         "_comment_ever_epoch": [

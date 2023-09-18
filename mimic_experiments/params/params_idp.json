@@ -2,19 +2,20 @@
     "save": true,
     "model": {
         "name_base": "idp_try_2",
-        "name_num": 4,
-        "name": "idp_try_24",
+        "name_num": 24,
+        "name": "idp_try_224",
         "dataset_name": "cifar10",
-        "model": "alexnet",
+        "model": "mlp",
         "private": true,
         "private_filter": false,
         "seed": 472168,
-        "split_data": false
+        "split_data": false,
+        "ELU": false
     },
     "training": {
-        "num_epochs": 20,
-        "learning_rate": 0.0005,
-        "l2_regularizer": 0.0005,
+        "num_epochs": 200,
+        "learning_rate": 1e-05,
+        "l2_regularizer": 0.0001,
         "batch_size": 50000,
         "selected_labels_old": [
             0,
@@ -42,13 +43,18 @@
     },
     "Inform": {
         "remove": false,
-        "idx": 344,
-        "class": 0
+        "reorder": false,
+        "idx": 0,
+        "class": 0,
+        "approximation": "AsdlGGN",
+        "representation": "diag",
+        "firstbatchnum": 0
     },
     "Paths": {
         "gradient_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_idp/gradients",
         "stats_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_idp/stats",
         "wandb_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/results/wandb/",
+        "compare_model_path_base": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_reorder/compare/compare_",
         "compare_model_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results/compare/laplace_126.pkl"
     },
     "logging": {
@@ -56,14 +62,18 @@
             "gradient_df_complete",
             "losses_df_active",
             "losses_df_complete",
-            "losses_df_test",
-            "gradients"
+            "losses_df_test"
         ],
         "every_epoch": [],
         "_comment_final": [
             "model_laplace",
-            "compare_laplace"
+            "compare_laplace",
+            "get_accuracies",
+            "get_idx_accuracy",
+            "hist_weights"
         ],
-        "final": []
+        "final": [
+            "model_laplace"
+        ]
     }
 }

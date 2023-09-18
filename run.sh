@@ -16,4 +16,4 @@ conda deactivate # If you launch your script from a terminal where your environm
 conda activate indiv_privacy # If this does not work, try 'source activate ptl'
  
 # run the program
-python mimic_experiments/compute_anything.py
+python mimic_experiments/compute_anything.py --params params_test

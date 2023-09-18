@@ -1,0 +1,81 @@
+{
+    "save": true,
+    "model": {
+        "name_base": "test2_weight_lr_1e_04_",
+        "name_num": 11,
+        "name": "test2_weight_lr_1e_04_11",
+        "dataset_name": "cifar10",
+        "model": "mlp",
+        "private": false,
+        "private_filter": false,
+        "seed": 472168,
+        "split_data": false,
+        "ELU": false
+    },
+    "training": {
+        "num_epochs": 40,
+        "learning_rate": 0.0001,
+        "l2_regularizer": 0.0001,
+        "batch_size": 500,
+        "selected_labels_old": [
+            0,
+            1,
+            2
+        ],
+        "selected_labels": [
+            "Black",
+            "White",
+            "Indian"
+        ],
+        "balancing_of_labels": [
+            0.04
+        ]
+    },
+    "testing": {
+        "test_every": 100
+    },
+    "DP": {
+        "max_per_sample_grad_norm": 0.0001,
+        "old": 0.343,
+        "sigma_tilde": 1e-30,
+        "sigma_tilde_old": 10.614652581338738,
+        "T": 400
+    },
+    "Inform": {
+        "remove": false,
+        "reorder": true,
+        "idx": 35,
+        "class": 0,
+        "approximation": "AsdlGGN",
+        "representation": "diag",
+        "firstbatchnum": 0
+    },
+    "Paths": {
+        "gradient_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_test/gradients",
+        "stats_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_test/stats",
+        "wandb_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/results/wandb/",
+        "compare_model_path_base": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_test/compare/compare_",
+        "compare_model_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_test/compare/compare_"
+    },
+    "logging": {
+        "_comment_ever_epoch": [
+            "gradient_df_complete",
+            "losses_df_active",
+            "losses_df_complete",
+            "losses_df_test",
+            "gradients"
+        ],
+        "every_epoch": [],
+        "_comment_final": [
+            "model_laplace",
+            "compare_laplace",
+            "get_accuracies",
+            "get_idx_accuracy",
+            "hist_weights"
+        ],
+        "final": [
+            "model_laplace",
+            "hist_weights"
+        ]
+    }
+}

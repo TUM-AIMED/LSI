@@ -43,6 +43,10 @@ def log_data_final(
         results_dict["idx"] = idx
         results_dict["accuracy"] = accuracy
         results_dict["label"] = accuracy
+    if "hist_weights" in params["logging"]["final"]:
+        hist, bins = log_weights(model)
+        results_dict["weight_hist"] = hist
+        results_dict["weight_bins"] = bins
     return results_dict
 
 
@@ -126,45 +130,46 @@ def _create_df_of_gradients(
 
     # compute gradient for single data points
     # a naive, but simple solution
-    for _, (data, target, id, _) in enumerate(data_loader):
+    with BatchMemoryManager(data_loader=data_loader, max_physical_batch_size=50, optimizer=optimizer) as data_loader:
+        for _, (data, target, id, _) in enumerate(data_loader):
 
-        # ignore pytorch warnings about hooks
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
+            # ignore pytorch warnings about hooks
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
 
-            # compute gradients for current sample
-            data, target = data.to(DEVICE), target.to(DEVICE)
-            optimizer.zero_grad()
-            output = model(data)
-            loss = criterion(output, target)
-            loss.backward()
+                # compute gradients for current sample
+                data, target = data.to(DEVICE), target.to(DEVICE)
+                optimizer.zero_grad()
+                output = model(data)
+                loss = criterion(output, target)
+                loss.backward()
 
-        # concatenate gradients to compute l2-norm per sample
-        total_gradient_norm = 0
-        batch_grad_norms = 0
-        for (ii, p) in enumerate(model.parameters()):
-            if p.requires_grad:
-                per_sample_grad = p.grad_sample
+            # concatenate gradients to compute l2-norm per sample
+            total_gradient_norm = 0
+            batch_grad_norms = 0
+            for (ii, p) in enumerate(model.parameters()):
+                if p.requires_grad:
+                    per_sample_grad = p.grad_sample
 
-                # dimension across which we compute the norms for this gradient part
-                # (here is difference e.g. between biases and weight matrices)
-                per_sample_grad = torch.reshape(per_sample_grad, (per_sample_grad.shape[0], per_sample_grad.shape[1], -1))
-                dims = list(range(1, len(per_sample_grad.shape)))
+                    # dimension across which we compute the norms for this gradient part
+                    # (here is difference e.g. between biases and weight matrices)
+                    per_sample_grad = torch.reshape(per_sample_grad, (per_sample_grad.shape[0], per_sample_grad.shape[1], -1))
+                    dims = list(range(1, len(per_sample_grad.shape)))
 
-                # compute the clipped norms. Gradients will be clipped in .backward()
-                per_sample_grad_norms = per_sample_grad.norm(dim=dims)
+                    # compute the clipped norms. Gradients will be clipped in .backward()
+                    per_sample_grad_norms = per_sample_grad.norm(dim=dims)
 
-                batch_grad_norms += per_sample_grad_norms ** 2
+                    batch_grad_norms += per_sample_grad_norms ** 2
 
-                # compute the clipped norms. Gradients will be then clipped in .backward()
-        total_gradient_norm += (
-            torch.sqrt(batch_grad_norms).clamp(max=max_grad_norm)
-        ) ** 2
-        # Save in list for batchsizes smaller than whole dataset
-        total_gradient_norm_list.append(total_gradient_norm)
-        id_list.append(id)
-        sample_ids_list.append(sample_ids[id])
-    # concatenate all batches
+                    # compute the clipped norms. Gradients will be then clipped in .backward()
+            total_gradient_norm += (
+                torch.sqrt(batch_grad_norms).clamp(max=max_grad_norm)
+            ) ** 2
+            # Save in list for batchsizes smaller than whole dataset
+            total_gradient_norm_list.append(total_gradient_norm)
+            id_list.append(id)
+            sample_ids_list.append(sample_ids[id])
+        # concatenate all batches
     total_gradient_norm_list = torch.concatenate(total_gradient_norm_list)
     id_list = np.concatenate(id_list)
     sample_ids_list = np.concatenate(sample_ids_list)
@@ -235,23 +240,23 @@ def log_realized_gradients(params,
     :param N: number of training samples
 
     """ 
-
+    start_time = time.time()
     # Train loader returns also indices (vector idx)
     if params["model"]["private"]:
-        print("here2")
         with BatchMemoryManager(data_loader=train_loader_0, max_physical_batch_size=50, optimizer=optimizer) as train_loader_0_new:
-            print("here3")
             label_wise_gradients = {}
             label_wise_item_count = {}
-            for _, (data, target, idx, _) in enumerate(train_loader_0_new):
-                print("here4")
+            total_gradient_norm_list = []
+            id_list = []
+            sample_ids_list = []
+            sample_ids= train_loader_0.dataset.labels
+            for _, (data, target, id, _) in enumerate(train_loader_0_new):
                 # print(idx[0])
                 data, target = data.to(DEVICE), target.to(DEVICE)
                 optimizer.zero_grad()
                 output = model(data)
                 loss = criterion(output, target)
                 loss.backward()
-                print("here5")
                 batch_grad_norms = torch.zeros(len(target)).to(DEVICE)
                 # Clip each parameter's per-sample gradient
                 for (ii, p) in enumerate(model.parameters()):
@@ -282,6 +287,9 @@ def log_realized_gradients(params,
                         label_wise_item_count[str(label.item())] = 0
                     label_wise_gradients[str(label.item())] += sum(clipped_grads[target == label.item()])
                     label_wise_item_count[str(label.item())] += num_with_label
+                total_gradient_norm_list.append(clipped_grads)
+                id_list.append(id)
+                sample_ids_list.append(sample_ids[id])
         for key, value in label_wise_item_count.items():
             label_wise_gradients[key] = label_wise_gradients[key]/value
 
@@ -291,6 +299,7 @@ def log_realized_gradients(params,
         del batch_grad_norms
         optimizer.zero_grad()
         torch.cuda.empty_cache()
+        
 
     else:
         train_loader_0_new = train_loader_0
@@ -417,4 +426,18 @@ def _compare_laplace(params, model=None, train_loader=None, mean1=None, precisio
     kl2 = computeKL(mean2, mean1, precision2, precision1)
 
     return kl1, kl2
+
+def log_weights(model):
+    num_bins = 20  # You can adjust the number of bins as needed
+    weight_range = (-1.0, 1.0)  # Specify the range for weight values
+    all_weights = []
+
+    for param in model.parameters():
+        if param.requires_grad:
+            weights = param.data.cpu().numpy().flatten()  # Convert to NumPy array
+            all_weights.extend(weights)
+
+    # Create a histogram of weights
+    hist, bins = np.histogram(all_weights, bins=100, range=(-0.1, 0.1))
+    return hist, bins
 

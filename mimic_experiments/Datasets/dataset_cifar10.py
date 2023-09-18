@@ -137,6 +137,15 @@ class CIFAR10(Dataset):
         self.labels = np.delete(self.labels, current_idx, axis=0)
         self.active_indices = np.delete(self.active_indices, current_idx, axis=0)
 
+    def batchwise_reorder(self, batchsize, firstbatchnum, remove=False):
+        start = firstbatchnum * batchsize
+        end = start + batchsize
+        if remove:
+            end = end-1
+        self.data = np.concatenate((self.data[start:end], self.data[:start], self.data[end:]))
+        self.labels = np.concatenate((self.labels[start:end], self.labels[:start], self.labels[end:]))
+        self.active_indices = np.concatenate((self.active_indices[start:end], self.active_indices[:start], self.active_indices[end:]))
+
         
     def __len__(self):
         return len(self.data)

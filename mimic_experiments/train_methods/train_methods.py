@@ -62,9 +62,12 @@ def normal_train_step(params,
     total = 0
     correct = 0
     if params["model"]["private"]:
-        with BatchMemoryManager(data_loader=train_loader_active, max_physical_batch_size=50, optimizer=optimizer) as train_loader_new:
+        with BatchMemoryManager(data_loader=train_loader_active, max_physical_batch_size=200, optimizer=optimizer) as train_loader_new:
             loss_list = []
             for _, (data, target, idx, _) in enumerate(train_loader_new):
+                start_time = time.time()
+                print(f"First index in batch {idx[0]}")
+                print(f"Device {DEVICE}")
                 data, target = data.to(DEVICE), target.to(DEVICE)
                 optimizer.zero_grad()
 
@@ -76,6 +79,7 @@ def normal_train_step(params,
                 correct += (predicted == target).sum().item()
                 loss.backward()
                 optimizer.step()
+                print(f"physical batch took {time.time()-start_time}")
             accuracy = correct/total
             print(f"training accuracy {accuracy}")
             wandb.log({"train_accuracy": accuracy})
@@ -208,7 +212,6 @@ def train(
     grad_norms = torch.zeros(N).to(DEVICE)
     recorded_data = []
 
-    print("here")
     for epoch in range(1, params["training"]["num_epochs"] + 1):
         start_epoch = time.time()
         model.train()
