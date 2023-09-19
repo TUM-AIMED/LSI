@@ -6,6 +6,7 @@ from models.model_helper import get_model
 from Datasets.dataset_helper import get_dataset, CustomDataLoader
 from train_methods.train_methods import train
 from opacus.validators.module_validator import ModuleValidator
+from utils.idp_tracker import PrivacyLossTracker
 
 from opacus import PrivacyEngine
 from copy import deepcopy
@@ -138,13 +139,18 @@ def train_with_params(
             module=model,
             optimizer=optimizer,
             data_loader=train_loader_0,
-            noise_multiplier=params["DP"]["sigma_tilde"],
+            noise_multiplier=params["DP"]["noise_multiplier"],
             max_grad_norm=params["DP"]["max_per_sample_grad_norm"],
             poisson_sampling=False,
         )
 
         # this is used for computing individual privacy with estimates of gradient norms
-        idp_accoutant = PrivacyLossTracker(n_training, args.batchsize, noise_multiplier, init_norm=args.clip, delta=args.delta, rounding=args.rounding)
+        idp_accoutant = PrivacyLossTracker(N, 
+                                           params['training']['batch_size'], 
+                                           params["DP"]["noise_multiplier"], 
+                                           init_norm=params["DP"]["max_per_sample_grad_norm"], 
+                                           delta=params["DP"]["delta"], 
+                                           rounding=params["DP"]["rounding"])
         idp_accoutant.update_rdp()
 
     if not os.path.exists(params["Paths"]["gradient_save_path"]):
@@ -165,8 +171,8 @@ def train_with_params(
         criterion,
         N,
         stats_path=stats_save_path,
-        privacy_engine=privacy_engine,
         stop_epsilon=None,
+        idp_accountant=idp_accoutant
     )
 
 

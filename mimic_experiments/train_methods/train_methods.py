@@ -2,7 +2,8 @@ from utils.data_logger import (
     log_data_epoch, log_data_final, save_data_to_pickle, log_realized_gradients)
 from utils.data_utils import determine_active_set
 from opacus.utils.batch_memory_manager import BatchMemoryManager
-
+from utils.idp_tracker import update_norms
+from utils.idp_tracker_utils import process_grad_batch
 from opacus import PrivacyEngine
 from copy import deepcopy
 
@@ -38,13 +39,15 @@ def test(DEVICE, model, test_set):
     return 
 
 def normal_train_step(params,
+               epoch,
                model, 
                optimizer, 
                DEVICE, 
                criterion, 
-               privacy_engine,
                stop_epsilon,
-               train_loader_active):
+               train_loader_active,
+               idp_accountant,
+               step_count):
     """
     train runs the epoch loop and calls train_step and test
 
@@ -66,10 +69,18 @@ def normal_train_step(params,
             loss_list = []
             for _, (data, target, idx, _) in enumerate(train_loader_new):
                 start_time = time.time()
-                print(f"First index in batch {idx[0]}")
-                print(f"Device {DEVICE}")
+
                 data, target = data.to(DEVICE), target.to(DEVICE)
                 optimizer.zero_grad()
+
+                if(step_count % params["DP"]["update_norms_every"] == 0):
+                    # update full gradient norms
+                    update_norms(epoch,
+                                model,
+                                optimizer,
+                                criterion,
+                                idp_accountant)
+                    model.train()
 
                 output = model(data)
                 loss = criterion(output, target)
@@ -78,6 +89,9 @@ def normal_train_step(params,
                 total += target.size(0)
                 correct += (predicted == target).sum().item()
                 loss.backward()
+                norms = process_grad_batch(list(model.named_parameters()), params["DP"]["max_per_sample_grad_norm"]) # clip gradients and average clipped gradients
+                idp_accountant.update_loss()
+                step_count += 1
                 optimizer.step()
                 print(f"physical batch took {time.time()-start_time}")
             accuracy = correct/total
@@ -101,42 +115,19 @@ def normal_train_step(params,
         train_loader_mid = torch.utils.data.DataLoader(dataset_mid, batch_size=params["training"]["batch_size"] - 1, shuffle=False, num_workers=0, pin_memory=False)
         train_loader_aft = torch.utils.data.DataLoader(dataset_aft, batch_size=params["training"]["batch_size"], shuffle=False, num_workers=0, pin_memory=False)
         loss_list = []
-        for _, (data, target, idx, _) in enumerate(train_loader_pre):
-            data, target = data.to(DEVICE), target.to(DEVICE)
-            optimizer.zero_grad()
+        for data_loader in [train_loader_pre, train_loader_mid, train_loader_aft]
+            for _, (data, target, idx, _) in enumerate(data_loader):
+                data, target = data.to(DEVICE), target.to(DEVICE)
+                optimizer.zero_grad()
 
-            output = model(data)
-            loss = criterion(output, target)
-            loss_list.append(loss)
-            _, predicted = torch.max(output.data, 1)
-            total += target.size(0)
-            correct += (predicted == target).sum().item()
-            loss.backward()
-            optimizer.step()
-        for _, (data, target, idx, _) in enumerate(train_loader_mid):
-            data, target = data.to(DEVICE), target.to(DEVICE)
-            optimizer.zero_grad()
-
-            output = model(data)
-            loss = criterion(output, target)
-            loss_list.append(loss)
-            _, predicted = torch.max(output.data, 1)
-            total += target.size(0)
-            correct += (predicted == target).sum().item()
-            loss.backward()
-            optimizer.step()
-        for _, (data, target, idx, _) in enumerate(train_loader_aft):
-            data, target = data.to(DEVICE), target.to(DEVICE)
-            optimizer.zero_grad()
-
-            output = model(data)
-            loss = criterion(output, target)
-            loss_list.append(loss)
-            _, predicted = torch.max(output.data, 1)
-            total += target.size(0)
-            correct += (predicted == target).sum().item()
-            loss.backward()
-            optimizer.step()
+                output = model(data)
+                loss = criterion(output, target)
+                loss_list.append(loss)
+                _, predicted = torch.max(output.data, 1)
+                total += target.size(0)
+                correct += (predicted == target).sum().item()
+                loss.backward()
+                optimizer.step()
         accuracy = correct/total
         print(f"training accuracy {accuracy}")
         wandb.log({"train_accuracy": accuracy})
@@ -162,15 +153,6 @@ def normal_train_step(params,
         wandb.log({"train_accuracy": accuracy})
         wandb.log({"loss": sum(loss_list)})
 
-
-
-    # rdp_epsilon = privacy_engine.get_epsilon(1e-5)
-
-    # if stop_epsilon and float(stop_epsilon) < rdp_epsilon:
-    #     return 0
-
-    # noise_multiplier = optimizer.noise_multiplier
-
     optimizer.zero_grad()
     torch.cuda.empty_cache()
 
@@ -187,8 +169,8 @@ def train(
     criterion,
     N,
     stats_path,
-    privacy_engine=None,
     stop_epsilon=None,
+    idp_accountant = None
 ):
     """
     train runs the epoch loop and calls train_step and test
@@ -211,6 +193,8 @@ def train(
     # Compute all the individual norms (actually the squared norms squares are saved here)
     grad_norms = torch.zeros(N).to(DEVICE)
     recorded_data = []
+
+    step_count = 0
 
     for epoch in range(1, params["training"]["num_epochs"] + 1):
         start_epoch = time.time()
@@ -235,25 +219,19 @@ def train(
                 num_workers=0,
                 pin_memory=False,
             )
-        if "gradients" in params["logging"]["every_epoch"]:    
-            log_realized_gradients(params,
-                            model,
-                            DEVICE,
-                            optimizer,
-                            criterion,
-                            train_loader_0,
-                            grad_norms,
-                            budget,
-                            N)
         print(len(train_loader_active.dataset), flush=True)
+
         normal_train_step(params,
+               epoch,
                model, 
                optimizer, 
                DEVICE, 
                criterion, 
-               privacy_engine,
                stop_epsilon,
-               train_loader_active)
+               train_loader_active,
+               idp_accountant,
+               step_count)
+        
         if params["save"]:
             recorded_data.append(log_data_epoch(
                 params,
@@ -265,7 +243,7 @@ def train(
                 criterion, 
                 epoch=epoch, 
                 max_grad_norm=params["DP"]["max_per_sample_grad_norm"],
-                test_every=params["testing"]["test_every"],
+                test_every=params["testing"]["test_every"]
             ))
 
         if epoch % params["testing"]["test_every"] == 0:
@@ -275,7 +253,7 @@ def train(
         print(f"Epoch took {end_epoch-start_epoch}")
 
 
-    recorded_data.append(log_data_final(params, train_loader_0, model))
+    recorded_data.append(log_data_final(params, train_loader_0, model, idp_accountant))
     if params["save"]:
         save_data_to_pickle(
             params, 

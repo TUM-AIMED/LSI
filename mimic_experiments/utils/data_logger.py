@@ -16,7 +16,8 @@ DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 def log_data_final(
     params,
     train_loader,
-    model: torch.nn.Module
+    model: torch.nn.Module,
+    idp_accountant
 ):
     laplace_approx_mean = None
     results_dict = {}
@@ -47,6 +48,9 @@ def log_data_final(
         hist, bins = log_weights(model)
         results_dict["weight_hist"] = hist
         results_dict["weight_bins"] = bins
+    if "idp_accountant" in params["logging"]["final"]:
+        up_eps = idp_accountant.parallel_get_eps()
+        results_dict["idp_accountant"] = up_eps
     return results_dict
 
 

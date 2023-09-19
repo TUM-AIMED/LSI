@@ -125,7 +125,7 @@ def main():
     plot = "test"
 
     file_name = "output_compare"
-    xcompare = "kl1"
+    xcompare = "c"
     ycompare = "mem"
     zcompare = None
     x_label = xcompare

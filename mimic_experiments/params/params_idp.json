@@ -37,8 +37,11 @@
     "DP": {
         "max_per_sample_grad_norm": 5e-05,
         "old": 0.343,
-        "sigma_tilde": 0.2,
+        "noise_multiplier": 0.2,
         "sigma_tilde_old": 10.614652581338738,
+        "delta": 1e-5,
+        "rounding": 0.1,
+        "update_norms_every":50,
         "T": 400
     },
     "Inform": {
@@ -70,7 +73,8 @@
             "compare_laplace",
             "get_accuracies",
             "get_idx_accuracy",
-            "hist_weights"
+            "hist_weights",
+            "idp_accountant"
         ],
         "final": [
             "model_laplace"
