@@ -47,3 +47,8 @@ class AlexNetWrapper(nn.Module):
     def replace_all_relu_with_elu(self):
         self.replace_relu_with_elu(self.features)
         return 
+    
+    def clip_weights(self, clip_value):
+        for param_name, param in self.features.named_parameters():
+            if 'weight' in param_name:
+                param.data = torch.clamp(param.data, min=-clip_value, max=clip_value)

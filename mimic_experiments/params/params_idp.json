@@ -17,6 +17,7 @@
         "learning_rate": 1e-05,
         "l2_regularizer": 0.0001,
         "batch_size": 50000,
+        "clip_weight_value": 0.05,
         "selected_labels_old": [
             0,
             1,
@@ -40,6 +41,7 @@
         "noise_multiplier": 0.2,
         "sigma_tilde_old": 10.614652581338738,
         "delta": 1e-5,
+        "poisson_sampling": true,
         "rounding": 0.1,
         "update_norms_every":50,
         "T": 400

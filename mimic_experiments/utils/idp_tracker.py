@@ -14,7 +14,8 @@ from opacus.utils.batch_memory_manager import BatchMemoryManager
 from utils.rdp_accountant import compute_rdp, get_privacy_spent
 from utils.idp_tracker_utils import get_grad_batch_norms
 
-def update_norms(epoch,
+def update_norms(DEVICE,
+                 epoch,
                  model,
                  optimizer,
                  criterion,
@@ -27,12 +28,12 @@ def update_norms(epoch,
     idx_list = []
     with BatchMemoryManager(data_loader=train_loader, max_physical_batch_size=200, optimizer=optimizer) as train_loader:
         for _, (data, target, idx, _) in enumerate(train_loader):
-            inputs, targets, index = next(train_loader)
-            minibatch_idx = index
+            data, target = data.to(DEVICE), target.to(DEVICE)            
+            minibatch_idx = idx
 
             optimizer.zero_grad()
-            outputs = model(inputs)
-            loss = criterion(outputs, targets)
+            outputs = model(data)
+            loss = criterion(outputs, target)
             loss.backward()
             norms = get_grad_batch_norms(list(model.named_parameters()))
             idx_list.append(minibatch_idx)

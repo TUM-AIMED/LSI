@@ -68,14 +68,13 @@ def normal_train_step(params,
         with BatchMemoryManager(data_loader=train_loader_active, max_physical_batch_size=200, optimizer=optimizer) as train_loader_new:
             loss_list = []
             for _, (data, target, idx, _) in enumerate(train_loader_new):
-                start_time = time.time()
-
                 data, target = data.to(DEVICE), target.to(DEVICE)
                 optimizer.zero_grad()
 
                 if(step_count % params["DP"]["update_norms_every"] == 0):
                     # update full gradient norms
-                    update_norms(epoch,
+                    update_norms(DEVICE,
+                                epoch,
                                 model,
                                 optimizer,
                                 criterion,
@@ -93,11 +92,8 @@ def normal_train_step(params,
                 idp_accountant.update_loss()
                 step_count += 1
                 optimizer.step()
-                print(f"physical batch took {time.time()-start_time}")
-            accuracy = correct/total
-            print(f"training accuracy {accuracy}")
-            wandb.log({"train_accuracy": accuracy})
-            wandb.log({"loss": sum(loss_list)})
+                if model.clip_weights != None:
+                    model.clip_weights(params["training"]["selected_labels_old"])
     elif not params["model"]["private"] and params["Inform"]["remove"]:
         batchsize = params["training"]["batch_size"]
         iteration_containing_dropped_idx = int(params["Inform"]["idx"]/batchsize)
@@ -128,10 +124,8 @@ def normal_train_step(params,
                 correct += (predicted == target).sum().item()
                 loss.backward()
                 optimizer.step()
-        accuracy = correct/total
-        print(f"training accuracy {accuracy}")
-        wandb.log({"train_accuracy": accuracy})
-        wandb.log({"loss": sum(loss_list)})
+                if model.clip_weights != None:
+                    model.clip_weights(params["training"]["selected_labels_old"])
 
     else:
         loss_list = []
@@ -148,13 +142,15 @@ def normal_train_step(params,
             correct += (predicted == target).sum().item()
             loss.backward()
             optimizer.step()
-        accuracy = correct/total
-        print(f"training accuracy {accuracy}")
-        wandb.log({"train_accuracy": accuracy})
-        wandb.log({"loss": sum(loss_list)})
-
+            if model.clip_weights != None:
+                model.clip_weights(params["training"]["selected_labels_old"])
+    accuracy = correct/total
     optimizer.zero_grad()
     torch.cuda.empty_cache()
+    print(f"training accuracy {accuracy}")
+    wandb.log({"train_accuracy": accuracy})
+    wandb.log({"loss": sum(loss_list)})
+
 
 
 
@@ -232,7 +228,10 @@ def train(
         print(f"Epoch took {end_epoch-start_epoch}")
 
 
-    recorded_data.append(log_data_final(params, train_loader_0, model, idp_accountant))
+    recorded_data.append(log_data_final(params, 
+                                        train_loader_0, 
+                                        model, 
+                                        idp_accountant))
     if params["save"]:
         save_data_to_pickle(
             params, 

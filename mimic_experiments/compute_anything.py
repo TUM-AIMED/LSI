@@ -139,7 +139,7 @@ def train_with_params(
             data_loader=train_loader_0,
             noise_multiplier=params["DP"]["noise_multiplier"],
             max_grad_norm=params["DP"]["max_per_sample_grad_norm"],
-            poisson_sampling=False,
+            poisson_sampling=params["DP"]["poisson_sampling"],
         )
 
         # this is used for computing individual privacy with estimates of gradient norms
