@@ -45,8 +45,6 @@ def train_with_params(
 
     dataset_class, data_path = get_dataset(params["model"]["dataset_name"])
     model_class = get_model(params["model"]["model"],)
-
-    budget = (params["DP"]["T"] * params["DP"]["max_per_sample_grad_norm"] ** 2) + 1e-3 
     
     # This train loader is for the full batch and for checking all the individual gradient norms
     if params["model"]["split_data"]:
@@ -167,10 +165,7 @@ def train_with_params(
         train_loader_0,
         test_loader,
         optimizer,
-        budget,
         criterion,
-        N,
-        stats_path=stats_save_path,
         stop_epsilon=None,
         idp_accountant=idp_accoutant
     )

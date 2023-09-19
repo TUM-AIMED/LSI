@@ -165,10 +165,7 @@ def train(
     train_loader_0,
     test_loader,
     optimizer,
-    budget,
     criterion,
-    N,
-    stats_path,
     stop_epsilon=None,
     idp_accountant = None
 ):
@@ -191,7 +188,10 @@ def train(
     """ 
 
     # Compute all the individual norms (actually the squared norms squares are saved here)
-    grad_norms = torch.zeros(N).to(DEVICE)
+    print(f'lr: {params["training"]["learning_rate"]}')
+    print(f'l2: {params["training"]["l2_regularizer"]}')
+    print(f'epochs: {params["training"]["num_epochs"]}')
+    print(f'batchsize: {params["training"]["batch_size"]}')
     recorded_data = []
 
     step_count = 0
@@ -200,27 +200,6 @@ def train(
         start_epoch = time.time()
         model.train()
         print(epoch, flush=True)
-        if params["model"]["private_filter"]:
-            train_loader_active = determine_active_set(params,
-                            model,
-                            DEVICE,
-                            optimizer,
-                            criterion,
-                            train_loader_0,
-                            grad_norms,
-                            budget,
-                            N)
-        else:
-            data_set_active = deepcopy(train_loader_0.dataset)
-            train_loader_active = torch.utils.data.DataLoader(
-                data_set_active,
-                batch_size=params["training"]["batch_size"],
-                shuffle=False,
-                num_workers=0,
-                pin_memory=False,
-            )
-        print(len(train_loader_active.dataset), flush=True)
-
         normal_train_step(params,
                epoch,
                model, 
@@ -228,7 +207,7 @@ def train(
                DEVICE, 
                criterion, 
                stop_epsilon,
-               train_loader_active,
+               train_loader_0,
                idp_accountant,
                step_count)
         
@@ -237,7 +216,7 @@ def train(
                 params,
                 model,
                 optimizer, 
-                train_loader_active, 
+                train_loader_0, 
                 train_loader_0, 
                 test_loader,
                 criterion, 
@@ -259,8 +238,4 @@ def train(
             params, 
             recorded_data,
         )
-    print(f'lr: {params["training"]["learning_rate"]}')
-    print(f'l2: {params["training"]["l2_regularizer"]}')
-    print(f'epochs: {params["training"]["num_epochs"]}')
-    print(f'batchsize: {params["training"]["batch_size"]}')
     return 0
