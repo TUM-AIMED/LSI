@@ -258,12 +258,12 @@ if __name__ == "__main__":
     params["training"]["num_epochs"] = 400
     params["model"]["name_base"] = "laplace_"
     params["model"]["name"] = "laplace_"
-    params["Inform"]["remove"] = True
+    params["Inform"]["remove"] = False
     params["Inform"]["idx"] = 0
     params["Inform"]["approximation"] = "AsdlGGN"
     params["Inform"]["representation"] = "diag"
     params["training"]["clip_weight_value"] = 0.05
-    params["Paths"]["gradient_save_path"] = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_reorder_mnist4/compare"
+    params["Paths"]["gradient_save_path"] = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_reorder_mnist3/compare"
 
     params["logging"]["final"] = ["model_laplace", "hist_weights", "per_class_accuracies"]
     params["logging"]["every_epoch"] = ["per_class_accuracies"]
@@ -309,9 +309,9 @@ if __name__ == "__main__":
     )
 
     params["Paths"]["compare_model_path"] = params["Paths"]["gradient_save_path"] + "/" + str(params["model"]["name"]) + ".pkl"
-    params["Paths"]["gradient_save_path"] = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_reorder_mnist4/gradients"
+    params["Paths"]["gradient_save_path"] = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_reorder_mnist3/gradients"
     params["Inform"]["remove"] = True
-    params["Inform"]["idx"] = 1
+    params["Inform"]["idx"] = 0
     params["logging"]["every_epoch"] = []
     params["logging"]["final"] = ["model_laplace", "compare_laplace", "hist_weights"]
     params["training"]["batch_size"] = params["training"]["batch_size"] - 1
@@ -321,7 +321,7 @@ if __name__ == "__main__":
         print(f"Compute Remove Model {i}", flush=True)
         print("--------------------------")
         data_set_rm = deepcopy(data_set)
-        data_set_rm.remove_index_from_data(params["Inform"]["idx"])
+        data_set_rm.zero_index_from_data(params["Inform"]["idx"])
         print("------")
         print(f'Remove index {params["Inform"]["idx"]}')
         print("------")

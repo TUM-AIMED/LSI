@@ -120,6 +120,11 @@ class MNISTDataset(Dataset):
         self.labels = np.delete(self.labels, current_idx, axis=0)
         self.active_indices = np.delete(self.active_indices, current_idx, axis=0)
 
+    def zero_index_from_data(delf, base_idx):
+        current_idx = self.active_indices.tolist().index(base_idx)
+        self.data[current_idx] = np.zeros(self.data[0].shape)
+        self.labels = np.random.randint(10)
+
     def batchwise_reorder(self, batchsize, firstbatchnum, remove=False):
         start = firstbatchnum * batchsize
         end = start + batchsize
