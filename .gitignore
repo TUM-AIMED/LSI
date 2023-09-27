@@ -165,14 +165,7 @@ cython_debug/
 *.sh
 *.jpg
 *.png
-FAIRFACE/
-FAIRFACE_old/
-fairface/
-MEDMNIST/
-CIFAR100/
-IMAGENET/
 C_Score/
-CIFAR10/
 test.py
 mimic_experiments/results/
 wandb/
@@ -186,4 +179,4 @@ results_full_mlp3/
 results_reorder/
 results_test/
 results*/
-MNIST/
+Datasets/
