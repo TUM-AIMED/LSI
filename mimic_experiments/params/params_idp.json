@@ -2,21 +2,21 @@
     "save": true,
     "model": {
         "name_base": "idp_try_2",
-        "name_num": 24,
-        "name": "idp_try_224",
-        "dataset_name": "cifar10",
+        "name_num": 170,
+        "name": "idp_try_2170",
+        "dataset_name": "mnist",
         "model": "mlp",
         "private": true,
         "private_filter": false,
         "seed": 472168,
-        "split_data": false,
+        "split_data": true,
         "ELU": false
     },
     "training": {
         "num_epochs": 200,
-        "learning_rate": 1e-05,
+        "learning_rate": 3e-05,
         "l2_regularizer": 0.0001,
-        "batch_size": 50000,
+        "batch_size": 400,
         "clip_weight_value": 0.05,
         "selected_labels_old": [
             0,
@@ -29,21 +29,20 @@
             "Indian"
         ],
         "balancing_of_labels": [
-            0.01
+            1
         ]
     },
     "testing": {
-        "test_every": 5
+        "test_every": 10
     },
     "DP": {
-        "max_per_sample_grad_norm": 5e-05,
+        "max_per_sample_grad_norm": 1.8,
         "old": 0.343,
-        "noise_multiplier": 0.2,
-        "sigma_tilde_old": 10.614652581338738,
-        "delta": 1e-5,
-        "poisson_sampling": true,
+        "noise_multiplier": 0.3,
+        "delta": 1e-05,
+        "poisson_sampling": false,
         "rounding": 0.1,
-        "update_norms_every":50,
+        "update_norms_every": 5,
         "T": 400
     },
     "Inform": {
@@ -56,8 +55,8 @@
         "firstbatchnum": 0
     },
     "Paths": {
-        "gradient_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_idp/gradients",
-        "stats_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_idp/stats",
+        "gradient_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_idp2/gradients",
+        "stats_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_idp2/stats",
         "wandb_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/results/wandb/",
         "compare_model_path_base": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_reorder/compare/compare_",
         "compare_model_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results/compare/laplace_126.pkl"
@@ -69,7 +68,9 @@
             "losses_df_complete",
             "losses_df_test"
         ],
-        "every_epoch": [],
+        "every_epoch": [
+            "per_class_accuracies"
+        ],
         "_comment_final": [
             "model_laplace",
             "compare_laplace",
@@ -79,7 +80,10 @@
             "idp_accountant"
         ],
         "final": [
-            "model_laplace"
+            "model_laplace",
+            "hist_weights",
+            "idp_accountant",
+            "labels"
         ]
     }
 }

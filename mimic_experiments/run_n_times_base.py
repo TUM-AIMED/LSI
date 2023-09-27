@@ -8,7 +8,7 @@ if __name__ == "__main__":
 
     - edit: json_file_path for config file
     """ 
-    NTIMES = 100
+    NTIMES = 10
 
 
     os.environ['WANDB_CONFIG_DIR'] = '/vol/aimspace/users/kaiserj/wandb_config/'

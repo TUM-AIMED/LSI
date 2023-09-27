@@ -12,36 +12,36 @@ from multiprocessing import Pool
 import os
 from opacus.utils.batch_memory_manager import BatchMemoryManager
 from utils.rdp_accountant import compute_rdp, get_privacy_spent
-from utils.idp_tracker_utils import get_grad_batch_norms
+from utils.idp_tracker_utils import get_grad_batch_norms2
 
 def update_norms(DEVICE,
                  epoch,
                  model,
                  optimizer,
                  criterion,
+                 train_loader,
                  idp_accountant):
     print('updating norms at epoch %d'%(epoch))
-    model.eval()
 
+    # model.eval() # Change this if model is not MLP
 
     norms_list = []
     idx_list = []
-    with BatchMemoryManager(data_loader=train_loader, max_physical_batch_size=200, optimizer=optimizer) as train_loader:
-        for _, (data, target, idx, _) in enumerate(train_loader):
-            data, target = data.to(DEVICE), target.to(DEVICE)            
-            minibatch_idx = idx
 
-            optimizer.zero_grad()
-            outputs = model(data)
-            loss = criterion(outputs, target)
-            loss.backward()
-            norms = get_grad_batch_norms(list(model.named_parameters()))
-            idx_list.append(minibatch_idx)
-            norms_list.append(norms)
+    for _, (data, target, idx, _) in enumerate(train_loader):
+        minibatch_idx = idx
+        data, target = data.to(DEVICE), target.to(DEVICE)
+        optimizer.zero_grad()
+        output = model(data)
+        loss = criterion(output, target)
+        loss.backward()
+        norms = get_grad_batch_norms2(DEVICE, model.parameters())
+        idx_list.append(minibatch_idx)
+        norms_list.append(norms)
 
     idx = torch.cat(idx_list)
     norms = torch.cat(norms_list)
-    idp_accountant.update_norm(norms, idx)
+    idp_accountant.update_norm(DEVICE, norms, idx)
 
 def computeEpsFunc(args):
     #get_privacy_spent(orders, rdp, target_delta=delta)
@@ -86,11 +86,12 @@ def computeRdpFunc(args):
     return job_idx, result[job_idx]
 
 class PrivacyLossTracker(nn.Module):
-    def __init__(self, n, batchsize, sigma, init_norm=10, orders=np.arange(2, 1024, 1), delta=1e-5, rounding=0.1):
+    def __init__(self, DEVICE, n, batchsize, sigma, init_norm=10, orders=np.arange(2, 1024, 1), delta=1e-5, rounding=0.1):
         
         self.init_norm = init_norm
 
         self.norms = torch.zeros(n) + init_norm
+        self.norms = self.norms.to(DEVICE)
         
         self.rounding = rounding
         self.all_possible_norms = []
@@ -99,7 +100,7 @@ class PrivacyLossTracker(nn.Module):
             self.all_possible_norms.append(tmp_norm)
             tmp_norm += rounding
 
-        self.all_possible_norms = torch.tensor(self.all_possible_norms)
+        self.all_possible_norms = torch.tensor(self.all_possible_norms).to(DEVICE)
 
 
         self.sigma = sigma
@@ -117,13 +118,17 @@ class PrivacyLossTracker(nn.Module):
         self.orders = orders
 
         init_rdp = compute_rdp(self.q, sigma, 1, orders=orders)
+        print(f"Init- all current RDP")
+        print(f"Computing inital rdp_values, with {self.q} and {self.sigma}")
+        print(f"max in current: {np.max(init_rdp)}")
+        print(f"min in current: {np.min(init_rdp)}\n")
         
-        self.accmulated_rdp = torch.zeros(size=(n, orders.shape[0]))
+        self.accmulated_rdp = torch.zeros(size=(n, orders.shape[0])).to(DEVICE)
 
         self.current_rdp = torch.zeros(size=(n, orders.shape[0])) + torch.tensor(init_rdp).float()
+        self.current_rdp = self.current_rdp.to(DEVICE)
 
-        self.all_levels_rdp = torch.zeros(size=(self.all_possible_norms.shape[0], orders.shape[0]))
-
+        self.all_levels_rdp = torch.zeros(size=(self.all_possible_norms.shape[0], orders.shape[0])).to(DEVICE)
 
 
 
@@ -136,14 +141,14 @@ class PrivacyLossTracker(nn.Module):
             self.norms[idx[i]] = self.all_possible_norms[min_diff_idx[i]]
             self.current_rdp[idx[i]] = self.all_levels_rdp[min_diff_idx[i]]
 
-    def update_sigma(self, sigma):
+    def update_sigma(self, DEVICE, sigma):
         self.sigma = sigma
-        self.update_rdp()
+        self.update_rdp(DEVICE)
 
     def get_avg_norm(self):
         return torch.mean(self.norms).item()
 
-    def update_rdp(self):
+    def update_rdp(self, DEVICE):
         different_sigmas = {}
 
         for i, norm in enumerate(self.all_possible_norms):
@@ -197,13 +202,16 @@ class PrivacyLossTracker(nn.Module):
 
             idx = different_sigmas[sigma]
 
-            self.all_levels_rdp[idx] = torch.tensor(rdp).float()
+            self.all_levels_rdp[idx] = torch.tensor(rdp).float().to(DEVICE)
+        print(f"Init- all levels RDP")
+        print(f"max in levels: {torch.max(self.all_levels_rdp)}")
+        print(f"min in levels: {torch.min(self.all_levels_rdp)}\n")
 
         self.round_norms(np.arange(self.n))
 
 
-    def update_norm(self, norms, idx):
-        self.norms[idx] = norms
+    def update_norm(self, DEVICE, norms, idx):
+        self.norms[idx] = norms.to(DEVICE)
         self.norms[self.norms>self.init_norm] = self.init_norm
 
         self.round_norms(idx)
@@ -217,7 +225,7 @@ class PrivacyLossTracker(nn.Module):
         full_job_size = self.orig_n
         full_idx = np.arange(full_job_size)
 
-        num_workers = os.cpu_count() // 2
+        num_workers = 1 # os.cpu_count() // 2
         per_workder_load = full_job_size // num_workers
 
         job_idxs = []

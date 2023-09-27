@@ -7,6 +7,7 @@ from Datasets.dataset_helper import get_dataset, CustomDataLoader
 from train_methods.train_methods import train
 from opacus.validators.module_validator import ModuleValidator
 from utils.idp_tracker import PrivacyLossTracker
+from utils.data_utils import pretty_print_dict
 
 from opacus import PrivacyEngine
 from copy import deepcopy
@@ -28,6 +29,7 @@ def train_with_params(
 
     :param params: dict with all parameters
     """ 
+    print("train with params")
     run = wandb.init(
         project="individual_privacy",
         config = params,
@@ -38,6 +40,8 @@ def train_with_params(
         settings=wandb.Settings(_service_wait=8000),
         mode="disabled"
     )
+    print("train with params2")
+    # mode="disabled"
 
     DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     torch.manual_seed(params["model"]["seed"])
@@ -52,7 +56,7 @@ def train_with_params(
     else:
         data_set = dataset_class(data_path, train=True)
     
-    if params["Inform"]["remove"] and params["Inform"]["class"] != None:
+    if params["Inform"]["remove"] and params["Inform"]["class"] != "None":
         class_found = False
         while not class_found:
             _, label, _, _ = data_set.__getitem__(params["Inform"]["idx"])
@@ -74,14 +78,14 @@ def train_with_params(
         for file_name in os.listdir(compare_folder):
             params["Paths"]["compare_model_path"] = os.path.join(compare_folder, file_name)
         print(f'Reordering batches with batch {params["Inform"]["firstbatchnum"]} at first with idx {params["Inform"]["idx"]}')
-        print(f'Will compare to {params["Paths"]["compare_model_path"]}')
+    print(f'Will compare to {params["Paths"]["compare_model_path"]}')
 
 
     if params["Inform"]["reorder"]:
         data_set.batchwise_reorder(params["training"]["batch_size"], params["Inform"]["firstbatchnum"], remove=True)
         print(f'Reordering batches with batch {params["Inform"]["firstbatchnum"]}')
-        
-
+    
+    data_set.reduce_to_active([*range(400)]) 
     train_loader_0 = torch.utils.data.DataLoader(
         data_set,
         batch_size=params["training"]["batch_size"],
@@ -104,7 +108,7 @@ def train_with_params(
         pin_memory=False,
     )
 
-
+    print("train with params4")
     train_X_example, _, _, _ = train_loader_0.dataset[0]
     N = len(train_loader_0.dataset)
 
@@ -127,8 +131,9 @@ def train_with_params(
         lr=params["training"]["learning_rate"],
         weight_decay=params["training"]["l2_regularizer"],
     )
-
+    print("train with params5")
     privacy_engine = None
+    idp_accountant = None
     if params["model"]["private"]:
         secure_rng = False   
         privacy_engine = PrivacyEngine(secure_mode=secure_rng)
@@ -143,21 +148,21 @@ def train_with_params(
         )
 
         # this is used for computing individual privacy with estimates of gradient norms
-        idp_accoutant = PrivacyLossTracker(N, 
-                                           params['training']['batch_size'], 
-                                           params["DP"]["noise_multiplier"], 
-                                           init_norm=params["DP"]["max_per_sample_grad_norm"], 
-                                           delta=params["DP"]["delta"], 
-                                           rounding=params["DP"]["rounding"])
-        idp_accoutant.update_rdp()
-
+        idp_accountant = PrivacyLossTracker(DEVICE,
+                                        N, 
+                                        params['training']['batch_size'], 
+                                        params["DP"]["noise_multiplier"], 
+                                        init_norm=params["DP"]["max_per_sample_grad_norm"], 
+                                        delta=params["DP"]["delta"], 
+                                        rounding=params["DP"]["rounding"])
+        idp_accountant.update_rdp(DEVICE)
     if not os.path.exists(params["Paths"]["gradient_save_path"]):
         os.makedirs(params["Paths"]["gradient_save_path"])
     if not os.path.exists(params["Paths"]["stats_save_path"]):
         os.makedirs(params["Paths"]["stats_save_path"])
     stats_save_path = os.path.join(params["Paths"]["stats_save_path"])
 
-
+    pretty_print_dict(params)
     return train(
         params,
         model,
@@ -167,7 +172,7 @@ def train_with_params(
         optimizer,
         criterion,
         stop_epsilon=None,
-        idp_accountant=idp_accoutant
+        idp_accountant=idp_accountant
     )
 
 
@@ -186,6 +191,7 @@ if __name__ == "__main__":
     """with open('/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/params/params.json', 'r') as file:
         params = json.load(file)
     wandb.login()"""
+    warnings.filterwarnings("ignore")
 
 
     parser = argparse.ArgumentParser(description="Process optional float inputs.")

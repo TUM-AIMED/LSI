@@ -1,4 +1,5 @@
 import os
+import io
 import pickle
 import torch
 import numpy as np
@@ -11,6 +12,13 @@ import cv2
 plt.rcParams.update({
     'font.family': 'serif',
 })
+
+class CPU_Unpickler(pickle.Unpickler):
+    def find_class(self, module, name):
+        if module == 'torch.storage' and name == '_load_from_bytes':
+            return lambda b: torch.load(io.BytesIO(b), map_location='cpu')
+        else:
+            return super().find_class(module, name)
 
 def read_pkl_files_in_folder(folder_path):
     data_list = []  # List to store the content of pkl files
@@ -28,7 +36,7 @@ def read_pkl_files_in_folder(folder_path):
                 with open(file_path, 'rb') as file:
                     data = pickle.load(file)
                     data_list.append(data)
-                    print(f"Loaded data from '{filename}'")
+                    # print(f"Loaded data from '{filename}'")
             except Exception as e:
                 print(f"Error loading data from '{filename}': {str(e)}")
 
@@ -66,7 +74,7 @@ def imscatter(x, y, images, ax=None, zoom=1):
     return artists
 
 def get_images_form_idx(idxs):
-    dataset_class, data_path = get_dataset("cifar10")
+    dataset_class, data_path = get_dataset("mnist")
     data_set = dataset_class(data_path, train=True)
     images = []
     labels =[]
@@ -82,6 +90,8 @@ def get_images_form_idx(idxs):
 
 
 def limit_to_class(data, label, tar_label):
+    if tar_label == None:
+        return data
     results = []
     for each in data:
         results_each = []
@@ -114,32 +124,54 @@ def find_common_indices_and_data(list1_indices, list2_indices, list1_data, list2
     return common_indices, common_data_list1, common_data_list2
 
 
+def get_color(images):
+    colors = []
+    for image in images:
+        colors.append(np.mean(image))
+    return colors
+
+
 def main():
-    path_wo_reorder = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_full_mlp3/gradients"
-    path = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_reorder/gradients"
+    path = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_reorder_mnist4/gradients"
+    path_compare = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_reorder_mnist4/compare"
     path_to_c_scores = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/C_Score/cifar10-cscores-orig-order.npz"
     path_kl_2 = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_full_mlp/gradients"
-    path_mem = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_feldman/mlp_cifar10_150_1000.pkl"
-   
-    tar_label = 0
+    path_mem = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_feldman/mlp_mnist_150_1000.pkl"
+    path_priv = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_idp2/gradients/idp_try_2170.pkl"
+    path_inform = "/vol/aimspace/users/kaiserj/aws-cv-unique-information/results/test/predictions-t2000-h600849/results.pkl"
+
+    tar_label = None
     plot = "test"
 
-    file_name = "output_compare"
-    xcompare = "c"
-    ycompare = "mem"
+    file_name = "z_kl_vs_priv4"
+    xcompare = "kl1"
+    ycompare = "priv"
     zcompare = None
     x_label = xcompare
     y_label = ycompare
-    show_images = False
+    show_images = True
     animate = True
+
+
+    accuracies = read_pkl_files_in_folder(path_compare)[0][0]["per_class_accuracies"]
+    for k, v in accuracies.items():
+        print(f"{k}: {v}")
+
 
     data_list = read_pkl_files_in_folder(path)
     data_list = limit_to_final(data_list)
     idx, kl1, kl2 = get_idx_kl1_kl2(data_list)
-    kl_max = np.maximum(kl1, kl2)
     images, label = get_images_form_idx(idx)
-    kl1_norm = [(kl1_id-min(kl_max))/ (max(kl_max) - min(kl_max)) for kl1_id in kl_max]
-    [images, idx, kl_max, kl1, kl2] = limit_to_class([images, idx, kl_max, kl1, kl2], label, tar_label)
+    [images, idx, kl1, kl2] = limit_to_class([images, idx, kl1, kl2], label, tar_label)
+
+    color_data = get_color(images)
+
+    if xcompare in ["kl1_norm", "kl2_norm", "kl_norm_max", "kl_norm_min"] or ycompare in ["kl1_norm", "kl2_norm", "kl_norm_max", "kl_norm_min"] or zcompare in ["kl1_norm", "kl2_norm", "kl_norm_max", "kl_norm_min"]:
+        kl1_norm = [(kl1_id-min(kl1))/ (max(kl1) - min(kl1)) for kl1_id in kl1]
+        kl2_norm = [(kl2_id-min(kl2))/ (max(kl2) - min(kl2)) for kl2_id in kl2]
+        kl_norm_max = [max(x, y) for x, y in zip(kl1_norm, kl2_norm)]
+        kl_norm_min = [min(x, y) for x, y in zip(kl1_norm, kl2_norm)]
+        [kl1_norm, kl2_norm, kl_norm_max, kl_norm_min] = limit_to_class([kl1_norm, kl2_norm, kl_norm_max, kl_norm_min], label, tar_label)
 
     
     if xcompare in ["kl12", "kl22"] or ycompare in ["kl12", "kl22"]or zcompare in ["kl12", "kl22"]:
@@ -157,75 +189,96 @@ def main():
         print(f"c_score correctness {all(test)}")
         [c_scores] = limit_to_class([c_scores], label, tar_label)
 
+    if xcompare == "priv" or ycompare == "priv" or zcompare == "priv":
+        with open(path_priv, 'rb') as file:
+            priv_data_init = pickle.load(file)
+            priv_data_init = priv_data_init[-1]
+            priv_data = priv_data_init["idp_accountant"]
+            labels_priv = priv_data_init["labels"]
+            print("")
+            priv_data = [priv_data[index] for index in idx]
+            labels_priv_orderd = [labels_priv[index].item() for index in idx]
+            test = labels_priv_orderd == label
+            if test:
+                print("Sanity-check iDP successfull")
+            else:
+                raise Exception("Sanity-check idp failed")
+
+    if xcompare == "inform" or ycompare == "inform" or zcompare == "inform":
+        with open(path_inform, 'rb') as file:
+            data_inform = CPU_Unpickler(file).load()
+        data_imp_measures = data_inform["importance_measures"]
+        data_imp_measures = [data_imp.item() for data_imp in data_imp_measures]
+        labels_inform = data_inform["labels"]
+        labels_inform = [torch.argmax(tensor).item() for tensor in labels_inform]
+    
+        data_inform_ordered = [data_imp_measures[index] for index in idx]
+        labels_inform_orderd = [labels_inform[index] for index in idx]
+        test = labels_inform_orderd == label
+        if test:
+            print("Sanity-check inform successfull")
+        else:
+            raise Exception("Sanity-check inform failed")
+        
+
+    # priv_temp = [] 
+    # kl_temp = []  
+    # for (priv_id, norm_id) in zip(data_inform_ordered, kl_norm_max):
+    #     if norm_id > 0.0 and norm_id < 0.1:
+    #         priv_temp.append(priv_id)
+    #         kl_temp.append(norm_id)
+    # data_inform_ordered = priv_temp
+    # kl_norm_max = kl_temp
 
     print(f"Remaining idx: {len(idx)}")
+    if xcompare == "mem" or ycompare == "mem" or zcompare == "mem":
+        with open(path_mem, 'rb') as file:
+            mem_data = pickle.load(file)
+        mem_data = mem_data["data"]
+        mem_list = []
+        for index in idx:
+            mem_list.append(mem_data.get(index, 0))
+        [mem_list] = limit_to_class([mem_list], label, tar_label)
 
-    with open(path_mem, 'rb') as file:
-        mem_data = pickle.load(file)
-    mem_data = mem_data["data"]
-    mem_list = []
-    for index in idx:
-        mem_list.append(mem_data.get(index, 0))
-    [mem_list] = limit_to_class([mem_list], label, tar_label)
-
-
-
-    if plot == "test":
-        x_compare_data = None
-        y_compare_data = None
-        if xcompare == "mem":
-            x_compare_data = mem_list
-        elif xcompare == "kl1":
-            x_compare_data = kl1
-        elif xcompare == "kl2":
-            x_compare_data = kl2
-        elif xcompare == "kl12":
-            x_compare_data = kl12
-        elif xcompare == "kl22":
-            x_compare_data = kl22
-        elif xcompare == "c":
-            x_compare_data = c_scores
-        elif xcompare == "kl1_norm":
-            x_compare_data = kl1_norm
+    def get_data_from_name(compare):
+        compare_data = None
+        if compare == None:
+            compare_data == None
+        elif compare == "mem":
+            compare_data = mem_list
+        elif compare == "kl1":
+            compare_data = kl1
+        elif compare == "kl2":
+            compare_data = kl2
+        elif compare == "kl12":
+            compare_data = kl12
+        elif compare == "kl22":
+            compare_data = kl22
+        elif compare == "c":
+            compare_data = c_scores
+        elif compare == "priv":
+            compare_data = priv_data
+        elif compare == "inform":
+            compare_data = data_inform_ordered
+        elif compare == "kl1_norm":
+            compare_data = kl1_norm
+        elif compare == "kl2_norm":
+            compare_data = kl2_norm
+        elif compare == "kl_norm_max":
+            compare_data = kl_norm_max
+        elif compare == "kl_norm_min":
+            compare_data = kl_norm_min
+        elif compare == "color":
+            compare_data = color_data
         else:
-            print("not found 1")
+            raise Exception(f"{compare} not found")
+        return compare_data
 
-        if ycompare == "mem":
-            y_compare_data = mem_list
-        elif ycompare == "kl1":
-            y_compare_data = kl1
-        elif ycompare == "kl2":
-            y_compare_data = kl2
-        elif ycompare == "kl12":
-            y_compare_data = kl12
-        elif ycompare == "kl22":
-            y_compare_data = kl22
-        elif ycompare == "c":
-            y_compare_data = c_scores
-        elif ycompare == "kl1_norm":
-            y_compare_data = kl1_norm
-        else:
-            print("not found 2")
-
-
-        if zcompare == None:
-            print("2D")
-        elif zcompare == "mem":
-            z_compare_data = mem_list
-        elif zcompare == "kl1":
-            z_compare_data = kl1
-        elif zcompare == "kl2":
-            z_compare_data = kl2
-        elif zcompare == "kl12":
-            z_compare_data = kl12
-        elif zcompare == "kl22":
-            z_compare_data = kl22
-        elif zcompare == "c":
-            z_compare_data = c_scores
-        elif zcompare == "kl1_norm":
-            z_compare_data = kl1_norm
-        else:
-            print("not found 2")
+    if plot == "test":     
+        x_compare_data = get_data_from_name(xcompare)
+        y_compare_data = get_data_from_name(ycompare)
+        z_compare_data = get_data_from_name(zcompare)    
+            
 
         if zcompare != None:
             fig = plt.figure()
@@ -258,11 +311,13 @@ def main():
             fig, ax = plt.subplots()
             fig.set_dpi(500)
             fig.set_size_inches(10, 10)
-            plt.scatter(x_compare_data, y_compare_data)
+            if show_images:
+                imscatter(x_compare_data, y_compare_data, images)
+            else:
+                plt.scatter(x_compare_data, y_compare_data)
         ax.set_xlabel(x_label)
         ax.set_ylabel(y_label)
         plt.savefig(file_name + ".jpg")
-        pickle.dump(fig, open('FigureObject.fig.pickle', 'wb'))
     elif plot == "c_vs_KL":
         color = [abs(kl1_id - c_score_id) for (kl1_id, c_score_id) in zip(kl1_norm, c_scores)]
         color = [[c, 0, 0] for c in color]

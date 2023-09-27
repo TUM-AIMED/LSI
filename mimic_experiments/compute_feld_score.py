@@ -38,6 +38,7 @@ def save_results(dataset_train_0, output_in, output_out, model_num):
     final = {}
     final["data"] = results
     final["model_count"] = model_num
+    
     with open(os.path.join(results_path), 'wb') as file:
             pickle.dump(final, file)
     print(f"Save results at model number {model_num} to {results_path}", flush=True)
@@ -49,7 +50,7 @@ batchsize = 500
 num_models = 1000
 save_every = 100
 
-dataset_name ="cifar10"
+dataset_name ="mnist"
 model_name ="mlp"
 criterion = torch.nn.CrossEntropyLoss()
 results_path = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_feldman/" + model_name + "_" + dataset_name + "_" + str(num_epochs) + "_" + str(num_models) +".pkl"

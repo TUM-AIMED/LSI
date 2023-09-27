@@ -3,10 +3,13 @@ from models.vgg16 import VGG16Wrapper
 from models.alexNet import AlexNetWrapper
 from models.resnet34 import ResNet34Wrapper
 from models.resnet18 import ResNet18Wrapper
+from models.simple_cnn import CustomCNN
 
 def get_model(keyword):
     if keyword == "mlp":
         return MLPMultiLabel
+    elif keyword =="cnn":
+        return CustomCNN
     elif keyword == "vgg16":
         return VGG16Wrapper
     elif keyword == "alexnet":

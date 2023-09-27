@@ -30,6 +30,19 @@ def process_grad_batch(params, max_clip):
 
     return grad_norm_list
 
+def get_grad_batch_norms2(DEVICE, parameters):
+
+    grad_norm_list = None
+    for (ii, p) in enumerate(parameters):
+        if grad_norm_list == None:
+            n = p.grad_sample.shape[0]
+            grad_norm_list = torch.zeros(n).to(DEVICE)
+        per_sample_grad = p.grad_sample
+        per_sample_grad = torch.reshape(per_sample_grad, (per_sample_grad.shape[0], per_sample_grad.shape[1], -1))
+        dims = list(range(1, len(per_sample_grad.shape)))
+        per_sample_grad_norms = per_sample_grad.norm(dim=dims).to(DEVICE)
+        grad_norm_list += per_sample_grad_norms ** 2
+    return grad_norm_list
 
 def get_grad_batch_norms(params):
     n = params[0][1].grad_batch.shape[0]

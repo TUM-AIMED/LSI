@@ -2,7 +2,7 @@ import torch
 from torch.utils.data import DataLoader
 from Datasets.dataset_diabetes import DiabetesDataset
 from Datasets.dataset_fairface import FairfaceDataset
-from Datasets.dataset_mnist_unbalanced import MNISTDataset
+from Datasets.dataset_mnist import MNISTDataset
 from Datasets.dataset_medmnist import (Adrenalmnist3d, 
                                        Bloodmnist, 
                                        Breastmnist, 
@@ -31,7 +31,7 @@ def get_dataset(keyword):
     elif keyword == "fairface":
         return FairfaceDataset, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/fairface"
     elif keyword == "mnist":
-        return ValueError("Not implemented on server")
+        return MNISTDataset, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/MNIST/MNIST/raw"
     elif keyword == "adrenalmnist3d":
         return Adrenalmnist3d, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/MEDMNIST"
     elif keyword == "bloodmnist":

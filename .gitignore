@@ -185,3 +185,5 @@ results_full_mlp2/
 results_full_mlp3/
 results_reorder/
 results_test/
+results*/
+MNIST/

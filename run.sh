@@ -8,6 +8,8 @@
 #SBATCH --cpus-per-task=8  # Number of CPUs (Don't use more than 24 per GPU)
 #SBATCH --mem=20G  # Memory in GB (Don't use more than 48GB per GPU unless you absolutely need it and know what you are doing)
 
+export PYTHONUNBUFFERED=true
+
 # load python module
 ml python/anaconda3
  
@@ -16,4 +18,4 @@ conda deactivate # If you launch your script from a terminal where your environm
 conda activate indiv_privacy # If this does not work, try 'source activate ptl'
  
 # run the program
-python mimic_experiments/compute_anything.py --params params_test
+python mimic_experiments/compute_kl.py

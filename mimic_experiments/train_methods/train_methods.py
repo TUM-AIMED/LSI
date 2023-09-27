@@ -4,9 +4,10 @@ from utils.data_utils import determine_active_set
 from opacus.utils.batch_memory_manager import BatchMemoryManager
 from utils.idp_tracker import update_norms
 from utils.idp_tracker_utils import process_grad_batch
-from opacus import PrivacyEngine
+from opacus.grad_sample.grad_sample_module import GradSampleModule
 from copy import deepcopy
 
+import sys
 import torch
 import wandb
 import time
@@ -64,22 +65,30 @@ def normal_train_step(params,
     # Run full batch, sum up the gradients. Then we filter and replace the train_loader
     total = 0
     correct = 0
+    max_physical_batch_size = 100
     if params["model"]["private"]:
-        with BatchMemoryManager(data_loader=train_loader_active, max_physical_batch_size=200, optimizer=optimizer) as train_loader_new:
+        dataset = deepcopy(train_loader_active.dataset)
+        train_loader_gradient_computation = torch.utils.data.DataLoader(dataset, batch_size=max_physical_batch_size, shuffle=False, num_workers=0, pin_memory=False)
+        with BatchMemoryManager(data_loader=train_loader_active, max_physical_batch_size=max_physical_batch_size, optimizer=optimizer) as train_loader_new:
             loss_list = []
+            loop_iter_counter = 0
             for _, (data, target, idx, _) in enumerate(train_loader_new):
+                loop_iter_counter += 1
                 data, target = data.to(DEVICE), target.to(DEVICE)
-                optimizer.zero_grad()
-
-                if(step_count % params["DP"]["update_norms_every"] == 0):
-                    # update full gradient norms
+                last_data_of_batch = not optimizer._step_skip_queue[0]
+                if(step_count % params["DP"]["update_norms_every"] == 0 and last_data_of_batch):
+                    start_time = time.time()
+                    print(f"updating norms at epoch {epoch} with step (batch) {step_count}", flush=True)
                     update_norms(DEVICE,
                                 epoch,
                                 model,
                                 optimizer,
                                 criterion,
+                                train_loader_gradient_computation,
                                 idp_accountant)
+                    print(f"Updating Norms took {time.time() - start_time}", flush=True)
                     model.train()
+                optimizer.zero_grad()
 
                 output = model(data)
                 loss = criterion(output, target)
@@ -88,12 +97,17 @@ def normal_train_step(params,
                 total += target.size(0)
                 correct += (predicted == target).sum().item()
                 loss.backward()
-                norms = process_grad_batch(list(model.named_parameters()), params["DP"]["max_per_sample_grad_norm"]) # clip gradients and average clipped gradients
-                idp_accountant.update_loss()
-                step_count += 1
                 optimizer.step()
-                if model.clip_weights != None:
-                    model.clip_weights(params["training"]["selected_labels_old"])
+                if last_data_of_batch:
+                    print(f"Index of Batch {idx[0]}")
+                    idp_accountant.update_loss()
+                    step_count += 1
+                    loop_iter_counter = 0
+                    if params["training"]["clip_weight_value"] != None:
+                        if isinstance(model, GradSampleModule):
+                            model._module.clip_weights(params["training"]["clip_weight_value"])
+                        else:
+                            model.clip_weights(params["training"]["clip_weight_value"])
     elif not params["model"]["private"] and params["Inform"]["remove"]:
         batchsize = params["training"]["batch_size"]
         iteration_containing_dropped_idx = int(params["Inform"]["idx"]/batchsize)
@@ -111,7 +125,7 @@ def normal_train_step(params,
         train_loader_mid = torch.utils.data.DataLoader(dataset_mid, batch_size=params["training"]["batch_size"] - 1, shuffle=False, num_workers=0, pin_memory=False)
         train_loader_aft = torch.utils.data.DataLoader(dataset_aft, batch_size=params["training"]["batch_size"], shuffle=False, num_workers=0, pin_memory=False)
         loss_list = []
-        for data_loader in [train_loader_pre, train_loader_mid, train_loader_aft]
+        for data_loader in [train_loader_pre, train_loader_mid, train_loader_aft]:
             for _, (data, target, idx, _) in enumerate(data_loader):
                 data, target = data.to(DEVICE), target.to(DEVICE)
                 optimizer.zero_grad()
@@ -125,7 +139,7 @@ def normal_train_step(params,
                 loss.backward()
                 optimizer.step()
                 if model.clip_weights != None:
-                    model.clip_weights(params["training"]["selected_labels_old"])
+                    model.clip_weights(params["training"]["clip_weight_value"])
 
     else:
         loss_list = []
@@ -143,7 +157,7 @@ def normal_train_step(params,
             loss.backward()
             optimizer.step()
             if model.clip_weights != None:
-                model.clip_weights(params["training"]["selected_labels_old"])
+                model.clip_weights(params["training"]["clip_weight_value"])
     accuracy = correct/total
     optimizer.zero_grad()
     torch.cuda.empty_cache()
@@ -184,10 +198,12 @@ def train(
     """ 
 
     # Compute all the individual norms (actually the squared norms squares are saved here)
-    print(f'lr: {params["training"]["learning_rate"]}')
-    print(f'l2: {params["training"]["l2_regularizer"]}')
-    print(f'epochs: {params["training"]["num_epochs"]}')
-    print(f'batchsize: {params["training"]["batch_size"]}')
+    print('Hello world', file=sys.stderr, flush=True)
+    print(f'File name: {params["model"]["name"]}')
+    print(f'lr: {params["training"]["learning_rate"]}', flush=True)
+    print(f'l2: {params["training"]["l2_regularizer"]}', flush=True)
+    print(f'epochs: {params["training"]["num_epochs"]}', flush=True)
+    print(f'batchsize: {params["training"]["batch_size"]}', flush=True)
     recorded_data = []
 
     step_count = 0
@@ -210,6 +226,7 @@ def train(
         if params["save"]:
             recorded_data.append(log_data_epoch(
                 params,
+                DEVICE,
                 model,
                 optimizer, 
                 train_loader_0, 
@@ -229,6 +246,7 @@ def train(
 
 
     recorded_data.append(log_data_final(params, 
+                                        DEVICE,
                                         train_loader_0, 
                                         model, 
                                         idp_accountant))

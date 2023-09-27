@@ -2,6 +2,15 @@ from opacus.utils.batch_memory_manager import BatchMemoryManager
 from copy import deepcopy
 import torch
 
+def pretty_print_dict(d, indent=0):
+    for key, value in d.items():
+        if isinstance(value, dict):
+            print(' ' * indent + f'{key}:')
+            pretty_print_dict(value, indent + 4)
+        else:
+            print(' ' * indent + f'{key}: {value}')
+            
+
 def determine_active_set(params,
                          model,
                          DEVICE,

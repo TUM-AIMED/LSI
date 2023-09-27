@@ -2,9 +2,9 @@
     "save": true,
     "model": {
         "name_base": "laplace_",
-        "name_num": 1586,
-        "name": "laplace_1586_remove_idx_2613",
-        "dataset_name": "cifar10",
+        "name_num": 1828,
+        "name": "laplace_1828_remove_idx_50",
+        "dataset_name": "mnist",
         "model": "mlp",
         "private": false,
         "private_filter": false,
@@ -13,10 +13,11 @@
         "ELU": false
     },
     "training": {
-        "num_epochs": 200,
+        "num_epochs": 30,
         "learning_rate": 1e-05,
         "l2_regularizer": 0.0001,
-        "batch_size": 500,
+        "batch_size": 6000,
+        "clip_weight_value": 0.05,
         "selected_labels_old": [
             0,
             1,
@@ -28,53 +29,58 @@
             "Indian"
         ],
         "balancing_of_labels": [
-            0.04
+            1
         ]
     },
     "testing": {
-        "test_every": 100
+        "test_every": 10
     },
     "DP": {
-        "max_per_sample_grad_norm": 1e-05,
+        "max_per_sample_grad_norm": 2,
         "old": 0.343,
-        "sigma_tilde": 1e-30,
-        "sigma_tilde_old": 10.614652581338738,
+        "noise_multiplier": 0.5,
+        "delta": 1e-05,
+        "poisson_sampling": false,
+        "rounding": 0.1,
+        "update_norms_every": 20,
         "T": 400
     },
     "Inform": {
         "remove": true,
-        "reorder": true,
-        "idx": 2613,
-        "class": 0,
+        "reorder": false,
+        "idx": 50,
+        "class": "None",
         "approximation": "AsdlGGN",
         "representation": "diag",
         "firstbatchnum": 0
     },
     "Paths": {
-        "gradient_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_reorder/gradients",
-        "stats_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_reorder/stats",
+        "gradient_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_reorder_mnist2/gradients",
+        "stats_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_reorder_mnist2/stats",
         "wandb_save_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/results/wandb/",
-        "compare_model_path_base": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_reorder/compare/compare_",
-        "compare_model_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_reorder/compare/compare_"
+        "compare_model_path_base": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_reorder_mnist2/compare/compare_",
+        "compare_model_path": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_reorder_mnist2/compare/compare_0.pkl/laplace_1610.pkl"
     },
     "logging": {
         "_comment_ever_epoch": [
             "gradient_df_complete",
             "losses_df_active",
             "losses_df_complete",
-            "losses_df_test",
-            "gradients"
+            "losses_df_test"
         ],
         "every_epoch": [],
         "_comment_final": [
             "model_laplace",
             "compare_laplace",
             "get_accuracies",
-            "get_idx_accuracy"
+            "get_idx_accuracy",
+            "hist_weights",
+            "idp_accountant"
         ],
         "final": [
             "model_laplace",
-            "compare_laplace"
+            "compare_laplace",
+            "hist_weights"
         ]
     }
 }

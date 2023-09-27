@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-
+import torch.nn as nn
 
 class MLPMultiLabel(torch.nn.Module):
     def __init__(self, input_dim, output_dim):
@@ -12,11 +12,12 @@ class MLPMultiLabel(torch.nn.Module):
         self.relu1 = torch.nn.ReLU()
         self.linear2 = torch.nn.Linear(hidden_dim, output_dim)
         self.softmax = torch.nn.Softmax(dim=1)
-        self.features = torch.nn.Sequential(self.flatten, self.linear1, self.relu1, self.linear2, self.softmax)
+        self.features = torch.nn.Sequential(self.flatten, self.linear1, self.relu1, self.linear2)
 
 
     def forward(self, x):
         output = self.features(x)
+        output = self.softmax(output) # Put softmax out o fsequential due to la.fit - no idea if this is correct
         return output
  
     def freeze_all_but_last(self):
