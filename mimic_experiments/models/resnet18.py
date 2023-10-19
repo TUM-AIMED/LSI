@@ -8,7 +8,7 @@ class ResNet18Wrapper(nn.Module):
     def __init__(self, input_dim, num_classes):
         super(ResNet18Wrapper, self).__init__()
         self.num_classes = num_classes
-        self.features = models.resnet18(pretrained=True)
+        self.features = models.resnet18(pretrained=False)
         in_features = self.features.fc.in_features
         self.features.fc = nn.Linear(in_features, num_classes)
 
@@ -27,3 +27,9 @@ class ResNet18Wrapper(nn.Module):
     def test_freeze(self):
         for p in self.parameters():
             print(p.requires_grad)
+
+    def ReLU_inplace_to_False(self, features):
+        for layer in features._modules.values():
+            if isinstance(layer, nn.ReLU) or isinstance(layer, nn.ELU):
+                layer.inplace = False
+            self.ReLU_inplace_to_False(layer)

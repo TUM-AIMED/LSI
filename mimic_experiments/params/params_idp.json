@@ -2,8 +2,8 @@
     "save": true,
     "model": {
         "name_base": "idp_try_2",
-        "name_num": 170,
-        "name": "idp_try_2170",
+        "name_num": 175,
+        "name": "idp_try_2175",
         "dataset_name": "mnist",
         "model": "mlp",
         "private": true,
@@ -13,8 +13,8 @@
         "ELU": false
     },
     "training": {
-        "num_epochs": 200,
-        "learning_rate": 3e-05,
+        "num_epochs": 500,
+        "learning_rate": 0.0001,
         "l2_regularizer": 0.0001,
         "batch_size": 400,
         "clip_weight_value": 0.05,
@@ -33,7 +33,7 @@
         ]
     },
     "testing": {
-        "test_every": 10
+        "test_every": 100
     },
     "DP": {
         "max_per_sample_grad_norm": 1.8,

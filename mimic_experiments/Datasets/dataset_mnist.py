@@ -72,7 +72,6 @@ class MNISTDataset(Dataset):
     def _set_classes(self, classes):
         le = preprocessing.LabelEncoder()
         le.fit(self.labels)
-        self.class_assignments1 = le
         self.labels = le.transform(self.labels)
         self.class_assignments = le
         valid_classes = self.class_assignments.transform(classes)
@@ -85,6 +84,9 @@ class MNISTDataset(Dataset):
         self.data = self.data[remaining_idx]
         self.labels = self.labels[remaining_idx]
         self.active_indices = self.active_indices[remaining_idx]
+        le2 = preprocessing.LabelEncoder()
+        le2.fit(self.labels)
+        self.labels = le2.transform(self.labels)
 
     def _apply_portions(self, classes, portions):
         remaining_idx = []
@@ -119,8 +121,14 @@ class MNISTDataset(Dataset):
         self.data = np.delete(self.data, current_idx, axis=0)
         self.labels = np.delete(self.labels, current_idx, axis=0)
         self.active_indices = np.delete(self.active_indices, current_idx, axis=0)
+    
+    def remove_curr_index_from_data(self, idx):
+        current_idx = idx
+        self.data = np.delete(self.data, current_idx, axis=0)
+        self.labels = np.delete(self.labels, current_idx, axis=0)
+        self.active_indices = np.delete(self.active_indices, current_idx, axis=0)
 
-    def zero_index_from_data(delf, base_idx):
+    def zero_index_from_data(self, base_idx):
         current_idx = self.active_indices.tolist().index(base_idx)
         self.data[current_idx] = np.zeros(self.data[0].shape)
         self.labels = np.random.randint(10)

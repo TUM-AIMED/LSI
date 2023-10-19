@@ -53,7 +53,8 @@ def log_data_final(
         results_dict["weight_bins"] = bins
     if "idp_accountant" in params["logging"]["final"]:
         print("Gettint RDP values")
-        up_eps = idp_accountant.parallel_get_eps()
+        up_eps = idp_accountant.return_epsilon(1e-5)        
+        results_dict["idp_accountant_indiv"] = idp_accountant.indiv_Accountants
         results_dict["idp_accountant"] = up_eps
     if "per_class_accuracies" in params["logging"]["final"]:
         print("Getting per class accuracies")
@@ -120,7 +121,7 @@ def log_data_epoch(
             model.train()
             results_dict["test_loss"] = losses_df_test
     if "per_class_accuracies" in params["logging"]["every_epoch"]:
-        print("Getting per class accuracies")
+        # print("Getting per class accuracies")
         results_dict["per_class_accuracies"] = log_per_class_accuracies_test(DEVICE, model, train_loader_complete)
 
     return results_dict
@@ -400,20 +401,20 @@ def computeKL(mean1, mean2, precision1, precision2):
     inv_precision1 = 1/precision1
     inv_precision2 = 1/precision2
     mean_difference = mean2 - mean1
-    test1 = np.sum(np.multiply(precision2, inv_precision1)) 
-    test2 = np.sum(np.multiply(mean_difference, np.multiply(precision2, mean_difference))) 
-    test3 = len(mean1) 
-    test4 = compute_log_det(inv_precision2) - compute_log_det(inv_precision1)
-    test5 = compute_log_det(inv_precision2)
-    test6 = compute_log_det(inv_precision1)
-    print("------")
-    print(test1)
-    print(test2)
-    print(test3)
-    print(test4)
-    print(test5)
-    print(test6)
-    print("------")
+    # test1 = np.sum(np.multiply(precision2, inv_precision1)) 
+    # test2 = np.sum(np.multiply(mean_difference, np.multiply(precision2, mean_difference))) 
+    # test3 = len(mean1) 
+    # test4 = compute_log_det(inv_precision2) - compute_log_det(inv_precision1)
+    # test5 = compute_log_det(inv_precision2)
+    # test6 = compute_log_det(inv_precision1)
+    # print("------")
+    # print(test1)
+    # print(test2)
+    # print(test3)
+    # print(test4)
+    # print(test5)
+    # print(test6)
+    # print("------")
     kl = 0.5*(np.sum(np.multiply(precision2, inv_precision1)) 
               + np.sum(np.multiply(mean_difference, np.multiply(precision2, mean_difference))) 
               - len(mean1) 
@@ -511,9 +512,9 @@ def log_per_class_accuracies_test(DEVICE, model, data_set):
     for c, correct in class_correct.items():
         class_accuracies[c] = correct / class_total[c]
 
-    print("Per-class accuracies:")
-    for c, accuracy in class_accuracies.items():
-        print(f"Class {c}: {accuracy:.4f}")
+    # print("Per-class accuracies:")
+    # for c, accuracy in class_accuracies.items():
+    #     print(f"Class {c}: {accuracy:.4f}")
 
     return class_accuracies
 

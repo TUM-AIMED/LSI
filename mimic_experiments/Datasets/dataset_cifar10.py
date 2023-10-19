@@ -39,6 +39,7 @@ class CIFAR10(Dataset):
         self.data = np.array(data)
         self.data = self.data.reshape((self.data.shape[0], 3, 32, 32))
         self.labels = np.array(labels)
+        self.attributes = torch.empty((2,3), dtype=torch.int64)
 
         self.transform = transform
         self.labels_str = np.unique(self.labels)
@@ -88,8 +89,6 @@ class CIFAR10(Dataset):
     def _set_classes(self, classes):
         le = preprocessing.LabelEncoder()
         le.fit(self.labels)
-        self.class_assignments1 = le
-        print(dict(zip(le.classes_, le.transform(le.classes_))))
         self.labels = le.transform(self.labels)
         self.class_assignments = le
         valid_classes = self.class_assignments.transform(classes)
@@ -102,7 +101,11 @@ class CIFAR10(Dataset):
         self.data = self.data[remaining_idx]
         self.labels = self.labels[remaining_idx]
         self.active_indices = self.active_indices[remaining_idx]
+        le2 = preprocessing.LabelEncoder()
+        le2.fit(self.labels)
+        self.labels = le2.transform(self.labels)
 
+        
     def _apply_portions(self, classes, portions):
         remaining_idx = []
         class_sizes = []
@@ -131,6 +134,12 @@ class CIFAR10(Dataset):
         self.labels = self.labels[remaining_idx]
         self.active_indices = self.active_indices[remaining_idx]
 
+    def remove_curr_index_from_data(self, idx):
+        current_idx = idx
+        self.data = np.delete(self.data, current_idx, axis=0)
+        self.labels = np.delete(self.labels, current_idx, axis=0)
+        self.active_indices = np.delete(self.active_indices, current_idx, axis=0)
+
     def remove_index_from_data(self, base_idx):
         current_idx = self.active_indices.tolist().index(base_idx)
         self.data = np.delete(self.data, current_idx, axis=0)
@@ -153,14 +162,9 @@ class CIFAR10(Dataset):
     def __getitem__(self, idx):
         image = self.data[idx]
         label = self.labels[idx]
-        if len(image.shape) == 2:
-            image = np.stack([image] * 3, axis=0)
         image = image.transpose(1, 2, 0)
-        if self.resize:
-            image = cv2.resize(image, (224, 224), interpolation=cv2.INTER_LINEAR)
         transform = transforms.ToTensor()
         tensor_image = transform(image)
-        attributes = torch.empty((2,3), dtype=torch.int64)
         
-        return tensor_image, label, idx, attributes
+        return tensor_image, label, idx, self.attributes
 
