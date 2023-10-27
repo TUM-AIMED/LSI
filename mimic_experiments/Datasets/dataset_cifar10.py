@@ -165,6 +165,7 @@ class CIFAR10(Dataset):
         image = image.transpose(1, 2, 0)
         transform = transforms.ToTensor()
         tensor_image = transform(image)
+        # tensor_image = tensor_image[0, :, :] 
         
         return tensor_image, label, idx, self.attributes
 

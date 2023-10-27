@@ -8,6 +8,7 @@ from models.medium_cnn import CustomMedCNN
 from models.medium_to_small_cnn import CustomSmallMedCNN
 from models.vgg8 import CustomVGG8
 from models.small_mlp import SMALLMLP
+from models.medium_mlp import MEDIUMMLP
 
 def get_model(keyword):
     if keyword == "mlp":
@@ -30,5 +31,7 @@ def get_model(keyword):
         return CustomVGG8
     elif keyword == "small_mlp":
         return SMALLMLP
+    elif keyword == "med_mlp":
+        return MEDIUMMLP
     else:
         raise ValueError("Invalid keyword. Please provide a valid keyword.")

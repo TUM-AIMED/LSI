@@ -75,16 +75,20 @@ def get_kl_data(final_path, agg_type):
 
 
 def main():
-    kl_path = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_indiv_script/results_mnist_20_400/results_all.pkl"
-    file_name = "z_hist_mnist_20_400"
+    kl_path = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_indiv_script/results_cifar10_cnn_10_400/results_all.pkl"
+    file_name = "z_boxplot_cifar_10_400_sorted"
     kl1_diag, idx = get_kl_data(kl_path, "kl1_diag")
 
-    medians = [np.median(data) for data in kl1_diag]
+    images, label = get_images_form_idx(idx)
+
+    combined_data = list(zip(kl1_diag, idx))
+    sorted_data = sorted(combined_data, key=lambda x: np.median(x[0]))
+    kl1_diag, idx = zip(*sorted_data)
 
     plt.figure(figsize=(8, 6))
-    plt.hist(medians, bins="auto", edgecolor='blue', alpha=0.7)
-    plt.xlabel("KL1 - Diag")
-    plt.ylabel("Count")
+    plt.boxplot(kl1_diag, labels=idx)
+    plt.xlabel("Index")
+    plt.ylabel("KL1 - Diag")
 
     plt.tight_layout()
     plt.show()

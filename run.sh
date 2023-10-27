@@ -13,9 +13,9 @@ export PYTHONUNBUFFERED=true
 # load python module
 ml python/anaconda3
  
-# activate corresponding environment
-conda deactivate # If you launch your script from a terminal where your environment is already loaded, conda won't activate the environment. This guards against that. Not necessary if you always run this script from a clean terminal
-conda activate indiv_privacy # If this does not work, try 'source activate ptl'
+# # activate corresponding environment
+# conda deactivate # If you launch your script from a terminal where your environment is already loaded, conda won't activate the environment. This guards against that. Not necessary if you always run this script from a clean terminal
+# conda activate indiv_privacy # If this does not work, try 'source activate ptl'
  
 # run the program
-python mimic_experiments/compute_kl_cifar100.py --n_seeds 80 --n_rem 20 --repr diag --lap_type asdlgnn --name diag_asdlgnn_10_300_test
+python mimic_experiments/compute_kl_mnist.py --n_seeds 20 --n_rem 400 --repr diag kron --lap_type asdlgnn --name cifar10_cnn_20_400

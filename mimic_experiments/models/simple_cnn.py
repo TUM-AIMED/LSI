@@ -10,20 +10,21 @@ class CustomCNN(nn.Module):
         super(CustomCNN, self).__init__()
         
         # Convolutional layers
-        self.conv1 = nn.Conv2d(in_channels=3, out_channels=64, kernel_size=4, stride=2, padding=0)
-        self.relu1 = nn.ReLU()
-        self.conv2 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=4, stride=2, padding=0)
-        self.relu2 = nn.ReLU()
-        
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, stride=1, padding=0)
+        self.conv2 = nn.Conv2d(in_channels=32, out_channels=16, kernel_size=3, stride=1, padding=0)        
         # Fully connected layers
         self.flatten = nn.Flatten()
-        self.fc1 = nn.Linear(2304, 32)
-        self.relu3 = nn.ReLU()
+        self.fc1 = nn.Linear(576, 32)
         self.fc2 = nn.Linear(32, output_dim)
         self.softmax = torch.nn.Softmax(dim=1)
-        self.features = torch.nn.Sequential(self.conv1, self.relu1, self.conv2, self.relu2,
+        self.relu = nn.ReLU()
+        self.sigmoid = nn.Sigmoid()
+        self.tanh = nn.Tanh()
+        self.avgpool = nn.AvgPool2d(2)
+        self.features = torch.nn.Sequential(self.conv1, self.tanh, self.avgpool, 
+                                            self.conv2, self.tanh, self.avgpool, 
                                             self.flatten, 
-                                            self.fc1, self.relu3, 
+                                            self.fc1, self.tanh, 
                                             self.fc2 )
 
     def forward(self, x):

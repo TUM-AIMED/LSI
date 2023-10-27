@@ -51,9 +51,11 @@ def batch_correctness(model, data_set):
 
 def subset_train(seed, subset_ratio):
     # TODO insert random seed
+    seed = torch.randint(0, 20000, [1,1])
+    seed = seed.item()
     torch.manual_seed(42)
-    num_epochs = 15
-    batch_size = 128
+    num_epochs = 25
+    batch_size = 256
     dataset_name = "cifar10"
     model_name ="resnet18"
 
@@ -117,9 +119,10 @@ def subset_train(seed, subset_ratio):
         accuracy = correct/total
         torch.cuda.empty_cache()
         print(f"training accuracy {accuracy}")
-        print(f"testing accuracy {test(model, test_loader)}")
-        print(f"training accuracy - subset - after {test(model, train_loader)}")
-        print(f"training accuracy - whole data {test(model, train_loader_0)}")
+        if epoch % 20 == 0:
+            print(f"testing accuracy {test(model, test_loader)}")
+            print(f"training accuracy - subset - after {test(model, train_loader)}")
+            print(f"training accuracy - whole data {test(model, train_loader_0)}")
         optimizer.zero_grad()
 
     trainset_correctness = batch_correctness(
@@ -178,6 +181,6 @@ if __name__ == '__main__':
     estimates = estimate_infl_mem(n_runs)
     if not os.path.exists(results_path):
         os.makedirs(results_path)
-    with open(results_path + "/" + "test_feldman_cifar10_" + str(n_runs) + ".pkl", 'wb') as file:
+    with open(results_path + "/" + "feldman_cifar10_final_" + str(n_runs) + ".pkl", 'wb') as file:
         pickle.dump(estimates, file)
 

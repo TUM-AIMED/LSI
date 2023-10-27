@@ -12,6 +12,7 @@ from matplotlib import animation
 from Datasets.dataset_helper import get_dataset
 import cv2
 from collections import defaultdict
+from matplotlib.patches import Ellipse, Circle
 
 
 plt.rcParams.update({
@@ -73,22 +74,50 @@ def get_kl_data(final_path, agg_type):
     return kl_data_list, idx
 
 
+def get_boxplot_like(data_list):
+    meds = []
+    iqrs = []
+    for data in data_list:
+        data.sort()
+
+        # Calculate the median
+        n = len(data)
+        if n % 2 == 0:
+            median = (data[n // 2 - 1] + data[n // 2]) / 2
+        else:
+            median = data[n // 2]
+        q1 = data[n // 4]
+        q3 = data[3 * n // 4]
+        iqr = q3 - q1
+        meds.append(median)
+        iqrs.append(iqr)
+    return meds, iqrs
 
 def main():
-    kl_path = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_indiv_script/results_mnist_20_400/results_all.pkl"
-    file_name = "z_hist_mnist_20_400"
-    kl1_diag, idx = get_kl_data(kl_path, "kl1_diag")
+    kl_path = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_indiv_script/results_cifar10_cnn_5_400/results_all.pkl"
+    kl_path2 = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_indiv_script/results_cifar10_cnn_10_400/results_all.pkl"
+    file_name = "z_kl_vs_kl_scatter_mnist_5_vs_10"
+    kl_diag1, idx = get_kl_data(kl_path, "kl1_diag")
+    (kl_diag1, kl_var1) = get_boxplot_like(kl_diag1)
+    kl_diag2, idx = get_kl_data(kl_path2, "kl1_diag")
+    (kl_diag2, kl_var2) = get_boxplot_like(kl_diag2)
 
-    medians = [np.median(data) for data in kl1_diag]
 
-    plt.figure(figsize=(8, 6))
-    plt.hist(medians, bins="auto", edgecolor='blue', alpha=0.7)
-    plt.xlabel("KL1 - Diag")
-    plt.ylabel("Count")
+    images, label = get_images_form_idx(idx)
 
-    plt.tight_layout()
-    plt.show()
+
+    fig, ax = plt.subplots(1,figsize=(6,6))
+    plt.scatter(kl_diag1, kl_diag2, marker='o', color='blue')
+    plt.xlabel("kl_diag1 - 5")
+    plt.ylabel("kl_diag1 - 10")
+ 
+
+    # for i, (x, y, x_var, y_var) in enumerate(zip(kl_diag1, kl_diag2, kl_var1, kl_var2)):
+        # if i %  50 == 0:
+        #     ellipse = Ellipse((x, y), width=x_var, height=y_var, edgecolor='red', facecolor='red', alpha=0.5)
+        #     ax.add_patch(ellipse)
+    ax.plot([0, np.max(kl_diag1) + 2], [0, np.max(kl_diag2) + 2], linestyle='--', color='blue')
+    #use add_patch instead, it's more clear what you are doing
     plt.savefig(file_name + ".jpg")
     print(f"saving fig as {file_name}.jpg")
-
 main()

@@ -75,16 +75,40 @@ def get_kl_data(final_path, agg_type):
 
 
 def main():
-    kl_path = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_indiv_script/results_mnist_20_400/results_all.pkl"
-    file_name = "z_hist_mnist_20_400"
+    kl_path = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_indiv_script/results_mnist_2_2/results_all.pkl"
+    file_name = "z_correlation_mnist"
     kl1_diag, idx = get_kl_data(kl_path, "kl1_diag")
+    kl1_kron, idx = get_kl_data(kl_path, "kl1_kron")
+    kl1_full, idx = get_kl_data(kl_path, "kl1_full")
+    kl2_diag, idx = get_kl_data(kl_path, "kl2_diag")
+    kl2_kron, idx = get_kl_data(kl_path, "kl2_kron")
+    kl2_full, idx = get_kl_data(kl_path, "kl2_full")
+    images, label = get_images_form_idx(idx)
 
-    medians = [np.median(data) for data in kl1_diag]
+    # Calculate the mean values for each variable
 
-    plt.figure(figsize=(8, 6))
-    plt.hist(medians, bins="auto", edgecolor='blue', alpha=0.7)
-    plt.xlabel("KL1 - Diag")
-    plt.ylabel("Count")
+    kl1_diag_means = [np.mean(id_value) for id_value in kl1_diag]
+    kl1_kron_means = [np.mean(id_value) for id_value in kl1_kron]
+    kl1_full_means = [np.mean(id_value) for id_value in kl1_full]
+    kl2_diag_means = [np.mean(id_value) for id_value in kl2_diag]
+    kl2_kron_means = [np.mean(id_value) for id_value in kl2_kron]
+    kl2_full_means = [np.mean(id_value) for id_value in kl2_full]
+
+    data = [kl1_diag_means, kl1_kron_means, kl1_full_means, kl2_diag_means, kl2_kron_means, kl2_full_means]
+    variable_names = ["kl1_diag_means", "kl1_kron_means", "kl1_full_means", "kl2_diag_means", "kl2_kron_means", "kl2_full_means"]
+
+
+    # Create a 6x6 scatterplot
+    fig, ax = plt.subplots(6, 6, figsize=(12, 12))
+
+    for i in range(6):
+        for j in range(6):
+            if i == j:
+                ax[i, j].text(0.5, 0.5, variable_names[i], ha='center', va='center', fontsize=12)
+            else:
+                ax[i, j].scatter(data[i], data[j], s=10, alpha=0.6)
+                ax[i, j].set_xlabel(variable_names[i])
+                ax[i, j].set_ylabel(variable_names[j])
 
     plt.tight_layout()
     plt.show()
