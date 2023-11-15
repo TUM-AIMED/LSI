@@ -10,6 +10,7 @@ from sklearn import preprocessing
 import sklearn
 import cv2
 from mnist import MNIST
+import random
 
 class MNISTDataset(Dataset):
     def __init__(self, data_path, train=True, classes=None, portions=None, transform=None, shuffle=False, resize = None):
@@ -70,11 +71,8 @@ class MNISTDataset(Dataset):
         
 
     def _set_classes(self, classes):
-        le = preprocessing.LabelEncoder()
-        le.fit(self.labels)
-        self.labels = le.transform(self.labels)
-        self.class_assignments = le
-        valid_classes = self.class_assignments.transform(classes)
+        pot_classes = np.unique(self.labels)
+        valid_classes = [cl for cl in classes if cl in pot_classes]
         if len(valid_classes) == 0:
             raise ValueError("No valid classes found in the dataset.")
         if len(valid_classes) != len(classes):
@@ -87,6 +85,7 @@ class MNISTDataset(Dataset):
         le2 = preprocessing.LabelEncoder()
         le2.fit(self.labels)
         self.labels = le2.transform(self.labels)
+
 
     def _apply_portions(self, classes, portions):
         remaining_idx = []
@@ -157,7 +156,42 @@ class MNISTDataset(Dataset):
             labels = torch.from_numpy(np.asarray(labels)).type(torch.LongTensor)
         print("After after true load", flush=True)
         return images, labels
+
+    def apply_label_noise(self, noisy_idx):
+        self.noisy_idx = noisy_idx
+        self.noisy_initial_labels = self.labels[self.noisy_idx]
+        self.noisy_replacements = []
+        possible_labels = np.unique(self.labels)
+        for i, value in enumerate(self.noisy_initial_labels):
+            random_choice = value  # Initialize with the specific value
+            while random_choice == value:
+                random_choice = np.random.choice(possible_labels)
+            self.noisy_replacements.append(random_choice)
+        
+        self.labels[self.noisy_idx] = self.noisy_replacements
+        return
+
+    def apply_image_mark(self, noisy_idx):
+        self.noisy_idx = noisy_idx
+        for data in self.data[self.noisy_idx]:
+            square_size = random.randint(6, 10)
+            x_pos = random.randint(0, 32 - square_size)
+            y_pos = random.randint(0, 32 - square_size)
+            data[:, x_pos:x_pos + square_size, y_pos:y_pos + square_size] = 0
+        return
     
+
+    def apply_group_label_noise(self, lab=6, nth=1, under=400):
+        noisy_idx = []
+        possible_labels = np.unique(self.labels)
+        for idx, label in enumerate(self.labels):
+            if label == lab and idx % nth == 0 and idx < 400:
+                self.labels[idx] ==  np.random.choice(possible_labels)
+                noisy_idx.append(idx)
+        return noisy_idx
+
+
+
     def read_images(self, file):
         _, _, rows, cols = torch.tensor(torch.load(file)).size()
         return torch.tensor(torch.load(file)).reshape(-1, rows, cols).float() / 255.0

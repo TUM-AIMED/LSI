@@ -54,16 +54,20 @@ def subset_train(seed, subset_ratio):
     seed = torch.randint(0, 20000, [1,1])
     seed = seed.item()
     torch.manual_seed(42)
-    num_epochs = 25
+    num_epochs = 180
     batch_size = 256
     dataset_name = "cifar10"
-    model_name ="resnet18"
+    model_name ="cnn"
+    keep_indices = [*range(1500)]
 
     dataset_class, dataset_path = get_dataset(dataset_name)
     model_class = get_model(model_name)
     dataset_train_0 = dataset_class(dataset_path)
+    dataset_train_0.reduce_to_active(keep_indices)
     dataset_test_0 = dataset_class(dataset_path, train=False)
     dataset_train = dataset_class(dataset_path)
+    dataset_train.reduce_to_active(keep_indices)
+
     criterion = torch.nn.CrossEntropyLoss()
 
     train_in_len = dataset_train_0.data[0].flatten().shape[0]
@@ -72,8 +76,8 @@ def subset_train(seed, subset_ratio):
     model = torch.nn.DataParallel(model)
     optimizer = torch.optim.AdamW(
         model.parameters(),
-        lr=0.005,
-        weight_decay=0.005,
+        lr=4e-03,
+        weight_decay=3e-04,
     )
 
     subset_idx = np.random.choice(len(dataset_train.data), size=int(len(dataset_train.data) * subset_ratio), replace=False)
@@ -81,7 +85,7 @@ def subset_train(seed, subset_ratio):
     
     train_loader =  torch.utils.data.DataLoader(
             dataset_train,
-            batch_size=batch_size,
+            batch_size=len(dataset_train),
             shuffle=True,
             num_workers=0,
             pin_memory=False,
@@ -96,7 +100,7 @@ def subset_train(seed, subset_ratio):
 
     train_loader_0 = torch.utils.data.DataLoader(
         dataset_train_0,
-        batch_size=batch_size,
+        batch_size=len(dataset_train_0),
         shuffle=False,
         num_workers=0,
         pin_memory=False,
@@ -181,6 +185,6 @@ if __name__ == '__main__':
     estimates = estimate_infl_mem(n_runs)
     if not os.path.exists(results_path):
         os.makedirs(results_path)
-    with open(results_path + "/" + "feldman_cifar10_final_" + str(n_runs) + ".pkl", 'wb') as file:
+    with open(results_path + "/" + "feldman_cifar10_first1500_final_" + str(n_runs) + ".pkl", 'wb') as file:
         pickle.dump(estimates, file)
 

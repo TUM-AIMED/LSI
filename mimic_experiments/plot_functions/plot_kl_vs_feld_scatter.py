@@ -42,24 +42,18 @@ def imscatter(x, y, images, ax=None, zoom=1):
     return artists
 
 def get_images_form_idx(idxs):
-    dataset_class, data_path = get_dataset("cifar10")
+    dataset_class, data_path = get_dataset("cifar100")
     data_set = dataset_class(data_path, train=True)
     # data_set._set_classes([0, 5])
     # data_set._set_classes([4, 9]) # mnist
     images = []
     labels =[]
-    for idx in idxs:
-        image, label, _, _ = data_set.__getitem__(idx)
-        image = image.numpy()
-        image = image.transpose(1, 2, 0)
-        # image = data_set.data[idx, :, :, :],
-        # image = cv2.resize(image[0], (3, 224, 224), interpolation=cv2.INTER_LINEAR)
-        images.append(image)
-        labels.append(label)
+    labels = data_set.labels[idxs]
+    images = data_set.data[idxs]
+    images = [im.transpose(1, 2, 0) for im in images]
     return images, labels
 
-
-def get_kl_data(final_path, agg_type):
+def get_kl_data(final_path, agg_type, rand=False):
     with open(final_path, 'rb') as file:
         final_dict = pickle.load(file)
     kl_data = final_dict[agg_type]
@@ -71,65 +65,55 @@ def get_kl_data(final_path, agg_type):
         for index in idx:
             kl_data_dict[index].append(kl_data[seed][index])
     kl_data_list = [value for key, value in kl_data_dict.items()]
-    return kl_data_list, idx
+    if rand: 
+        return kl_data_list, idx, final_dict["random_labels_idx"]
+    return kl_data_list, idx, None
 
 
-def get_boxplot_like(data_list):
-    meds = []
-    iqrs = []
-    for data in data_list:
-        data.sort()
-
-        # Calculate the median
-        n = len(data)
-        if n % 2 == 0:
-            median = (data[n // 2 - 1] + data[n // 2]) / 2
-        else:
-            median = data[n // 2]
-        q1 = data[n // 4]
-        q3 = data[3 * n // 4]
-        iqr = q3 - q1
-        meds.append(median)
-        iqrs.append(iqr)
-    return meds, iqrs
+def get_feld_scores(feld_path, idx):
+    with open(feld_path, 'rb') as file:
+        data = np.load(file)
+        memorization = data["tr_mem"]
+    indexed_memorization = [memorization[index] for index in idx]
+    return indexed_memorization
 
 def main():
-    kl_path = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_indiv_script/results_cifar10_cnn_noisy_20_400/results_all.pkl"
-    kl_path2 = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_indiv_script/results_cifar10_cnn_20_400/results_all.pkl"
-    file_name = "z_kl_vs_kl_scatter_cifar_200_vs_200_noisy"
-    kl_diag1, idx = get_kl_data(kl_path, "kl1_diag")
-    (kl_diag1, kl_var1) = get_boxplot_like(kl_diag1)
-    kl_diag2, idx2 = get_kl_data(kl_path2, "kl1_diag")
-    (kl_diag2, kl_var2) = get_boxplot_like(kl_diag2)
-    overlap_idx = [value for value in idx if value in idx2]
+    kl_path = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_indiv_script/results_cifar100compressed_logreg4_3_1000__30_1000_0.9850convex_SGD_Plane_vs_Lion/results_all.pkl"
+    feld_path = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/Feld_Score/cifar100_infl_matrix.npz"
+    file_name = "z_kl_vs_feld_scatter_cifar100compressed_logreg4_3_1000__30_1000_0.9850convex_SGD_Plane_vs_Lion"
+    kl_diag1, idx, _ = get_kl_data(kl_path, "kl2_diag")
+    kl_diag1 = [np.mean(data) for data in kl_diag1]
+    combined_data = list(zip(kl_diag1, idx))
+    sorted_data = sorted(combined_data, key=lambda x: np.median(x[0]))
+    kl_diag1, idx = zip(*sorted_data)
+
+    first_10 = kl_diag1[:10]
+    last_10 = kl_diag1[-10:]
+    kl_diag1 = first_10 + last_10
+
+    first_10 = idx[:10]
+    last_10 = idx[-10:]
+    idx = first_10 + last_10
+
+    feld_scores = get_feld_scores(feld_path, idx)
+
 
     images, label = get_images_form_idx(idx)
 
-    kl_diag1_keep = []
-    for (kl_data, index) in zip(kl_diag1, idx):
-        if index in overlap_idx:
-            kl_diag1_keep.append(kl_data)
-    kl_diag1 = kl_diag1_keep
-
-    kl_diag2_keep = []
-    for (kl_data, index) in zip(kl_diag2, idx):
-        if index in overlap_idx:
-            kl_diag2_keep.append(kl_data)
-    kl_diag2 = kl_diag2_keep
-
 
     fig, ax = plt.subplots(1,figsize=(6,6))
-    plt.scatter(kl_diag1, kl_diag2, marker='o', color='blue')
-    plt.xlabel("kl_diag1 - 200")
-    plt.ylabel("kl_diag1 - 10")
+    # plt.scatter(kl_diag1, feld_scores, marker='o', color='blue')
+    imscatter(kl_diag1, feld_scores, images, ax=None, zoom=1)
+    plt.xlabel("kl_diag2 - 200")
+    plt.ylabel("Mem-scores")
  
 
     # for i, (x, y, x_var, y_var) in enumerate(zip(kl_diag1, kl_diag2, kl_var1, kl_var2)):
         # if i %  50 == 0:
         #     ellipse = Ellipse((x, y), width=x_var, height=y_var, edgecolor='red', facecolor='red', alpha=0.5)
         #     ax.add_patch(ellipse)
-    ax.plot([0, np.max(kl_diag1) + 2], [0, np.max(kl_diag2) + 2], linestyle='--', color='blue')
+    # ax.plot([0, np.max(kl_diag1) + 2], [0, np.max(feld_scores) + 0.1], linestyle='--', color='blue')
     #use add_patch instead, it's more clear what you are doing
     plt.savefig(file_name + ".jpg")
-    print(f"saving fig as {file_name}.jpg")
+    print(f"saving fig as ./{file_name}.jpg")
 main()

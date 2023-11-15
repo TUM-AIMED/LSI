@@ -23,55 +23,59 @@ from Datasets.dataset_medmnist import (Adrenalmnist3d,
                                        Vesselmnist3d)
 from Datasets.dataset_cifar10 import CIFAR10
 from Datasets.dataset_cifar100 import CIFAR100
-
+from Datasets.dataset_compressed import Compressed
 
 def get_dataset(keyword):
     if keyword == "diabetes":
         return ValueError("Not implemented on server")
     elif keyword == "fairface":
-        return FairfaceDataset, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/Datasets_Raw/fairface"
+        return FairfaceDataset, "/vol/aimspace/users/kaiserj/Datasets/Datasets_Raw/fairface"
     elif keyword == "mnist":
-        return MNISTDataset, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/Datasets_Raw/MNIST/MNIST/raw"
+        return MNISTDataset, "/vol/aimspace/users/kaiserj/Datasets/Datasets_Raw/MNIST/MNIST/raw"
     elif keyword == "adrenalmnist3d":
-        return Adrenalmnist3d, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/Datasets_Raw/MEDMNIST"
+        return Adrenalmnist3d, "/vol/aimspace/users/kaiserj/Datasets/Datasets_Raw/MEDMNIST"
     elif keyword == "bloodmnist":
-        return Bloodmnist, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/Datasets_Raw/MEDMNIST"
+        return Bloodmnist, "/vol/aimspace/users/kaiserj/Datasets/Datasets_Raw/MEDMNIST"
     elif keyword == "breastmnist":
-        return Breastmnist, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/Datasets_Raw/MEDMNIST"
+        return Breastmnist, "/vol/aimspace/users/kaiserj/Datasets/Datasets_Raw/MEDMNIST"
     elif keyword == "chestmnist":
-        return Chestmnist, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/Datasets_Raw/MEDMNIST"
+        return Chestmnist, "/vol/aimspace/users/kaiserj/Datasets/Datasets_Raw/MEDMNIST"
     elif keyword == "dermamnist":
-        return Dermamnist, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/Datasets_Raw/MEDMNIST"
+        return Dermamnist, "/vol/aimspace/users/kaiserj/Datasets/Datasets_Raw/MEDMNIST"
     elif keyword == "fracturemnist3d":
-        return Fracturemnist3d, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/Datasets_Raw/MEDMNIST"
+        return Fracturemnist3d, "/vol/aimspace/users/kaiserj/Datasets/Datasets_Raw/MEDMNIST"
     elif keyword == "nodulemnist3d":
-        return Nodulemnist3d, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/Datasets_Raw/MEDMNIST"
+        return Nodulemnist3d, "/vol/aimspace/users/kaiserj/Datasets/Datasets_Raw/MEDMNIST"
     elif keyword == "octmnist":
-        return Octmnist, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/Datasets_Raw/MEDMNIST"
+        return Octmnist, "/vol/aimspace/users/kaiserj/Datasets/Datasets_Raw/MEDMNIST"
     elif keyword == "organamnist":
-        return Organamnist, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/Datasets_Raw/MEDMNIST"
+        return Organamnist, "/vol/aimspace/users/kaiserj/Datasets/Datasets_Raw/MEDMNIST"
     elif keyword == "organcmnist":
-        return Organcmnist, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/Datasets_Raw/MEDMNIST"
+        return Organcmnist, "/vol/aimspace/users/kaiserj/Datasets/Datasets_Raw/MEDMNIST"
     elif keyword == "organmnist3d":
-        return Organmnist3d, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/Datasets_Raw/MEDMNIST"
+        return Organmnist3d, "/vol/aimspace/users/kaiserj/Datasets/Datasets_Raw/MEDMNIST"
     elif keyword == "organsmnist":
-        return Organsmnist, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/Datasets_Raw/MEDMNIST"
+        return Organsmnist, "/vol/aimspace/users/kaiserj/Datasets/Datasets_Raw/MEDMNIST"
     elif keyword == "pathmnist":
-        return Pathmnist, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/Datasets_Raw/MEDMNIST"
+        return Pathmnist, "/vol/aimspace/users/kaiserj/Datasets/Datasets_Raw/MEDMNIST"
     elif keyword == "pneumoniamnist":
-        return Pneumoniamnist, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/Datasets_Raw/MEDMNIST"
+        return Pneumoniamnist, "/vol/aimspace/users/kaiserj/Datasets/Datasets_Raw/MEDMNIST"
     elif keyword == "retinamnist":
-        return Retinamnist, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/Datasets_Raw/MEDMNIST"
+        return Retinamnist, "/vol/aimspace/users/kaiserj/Datasets/Datasets_Raw/MEDMNIST"
     elif keyword == "synapsemnist3d":
-        return Synapsemnist3d, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/Datasets_Raw/MEDMNIST"
+        return Synapsemnist3d, "/vol/aimspace/users/kaiserj/Datasets/Datasets_Raw/MEDMNIST"
     elif keyword == "tissuemnist":
-        return Tissuemnist, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/Datasets_Raw/MEDMNIST"
+        return Tissuemnist, "/vol/aimspace/users/kaiserj/Datasets/Datasets_Raw/MEDMNIST"
     elif keyword == "vesselmnist3d":
-        return Vesselmnist3d, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/Datasets_Raw/MEDMNIST"
+        return Vesselmnist3d, "/vol/aimspace/users/kaiserj/Datasets/Datasets_Raw/MEDMNIST"
     elif keyword == "cifar10":
-        return CIFAR10, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/Datasets_Raw/CIFAR10/cifar-10-batches-py"
+        return CIFAR10, "/vol/aimspace/users/kaiserj/Datasets/Datasets_Raw/CIFAR10/cifar-10-batches-py"
     elif keyword == "cifar100":
-        return CIFAR100, "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/Datasets_Raw/CIFAR100/cifar-100-python"
+        return CIFAR100, "/vol/aimspace/users/kaiserj/Datasets/Datasets_Raw/CIFAR100/cifar-100-python"
+    elif keyword == "cifar10compressed":
+        return Compressed, "/vol/aimspace/users/kaiserj/Datasets/Datasets_compressed_by_resnet18_headless/cifar10"
+    elif keyword == "cifar100compressed":
+        return Compressed, "/vol/aimspace/users/kaiserj/Datasets/Datasets_compressed_by_resnet18_headless/cifar100"
     else:
         raise ValueError("Invalid keyword. Please provide a valid keyword.")
     

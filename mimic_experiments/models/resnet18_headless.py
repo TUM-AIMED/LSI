@@ -4,16 +4,11 @@ import torchvision.models as models
 import torch.nn.functional as F
 
 
-class ResNet18Wrapper(nn.Module):
-    def __init__(self, input_dim, num_classes, pretrained=False):
-        super(ResNet18Wrapper, self).__init__()
-        self.num_classes = num_classes
-        if pretrained:
-            self.features = models.resnet18(weights=ResNet18_Weights.DEFAULT)
-        else:
-            self.features = models.resnet18()
-        in_features = self.features.fc.in_features
-        self.features.fc = nn.Linear(in_features, num_classes)
+class ResNet18WrapperHeadless(nn.Module):
+    def __init__(self):
+        super(ResNet18WrapperHeadless, self).__init__()
+        self.resnet = models.resnet18(pretrained=True)
+        self.features = nn.Sequential(*list(self.resnet.children())[:-1])
 
     def forward(self, x):
         x = self.features(x)

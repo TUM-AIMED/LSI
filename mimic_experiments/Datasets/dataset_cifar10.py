@@ -9,6 +9,8 @@ from sklearn import preprocessing
 import sklearn
 import cv2
 import pickle
+import random
+
 
 class CIFAR10(Dataset):
     def __init__(self, data_path, train=True, classes=None, portions=None, transform=None, shuffle=False, resize = None):
@@ -84,6 +86,30 @@ class CIFAR10(Dataset):
         self.class_assignments2 = le
         
         print(dict(zip(le.classes_, le.transform(le.classes_))))
+
+
+    def apply_label_noise(self, noisy_idx):
+        self.noisy_idx = noisy_idx
+        self.noisy_initial_labels = self.labels[self.noisy_idx]
+        self.noisy_replacements = []
+        possible_labels = np.unique(self.labels)
+        for i, value in enumerate(self.noisy_initial_labels):
+            random_choice = value  # Initialize with the specific value
+            while random_choice == value:
+                random_choice = np.random.choice(possible_labels)
+            self.noisy_replacements.append(random_choice)
+        
+        self.labels[self.noisy_idx] = self.noisy_replacements
+        return
+
+    def apply_image_mark(self, noisy_idx):
+        self.noisy_idx = noisy_idx
+        for data in self.data[self.noisy_idx]:
+            square_size = random.randint(6, 10)
+            x_pos = random.randint(0, 32 - square_size)
+            y_pos = random.randint(0, 32 - square_size)
+            data[:, x_pos:x_pos + square_size, y_pos:y_pos + square_size] = 0
+        return
 
 
     def _set_classes(self, classes):
