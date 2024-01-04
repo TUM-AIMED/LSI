@@ -21,6 +21,7 @@ sdist/
 var/
 wheels/
 share/python-wheels/
+mimic_experiments/cupy_cache_dir/
 *.egg-info/
 .installed.cfg
 *.egg

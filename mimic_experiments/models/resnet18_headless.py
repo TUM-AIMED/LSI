@@ -2,14 +2,29 @@ import torch
 import torch.nn as nn
 import torchvision.models as models
 import torch.nn.functional as F
+from collections import OrderedDict
 
 
 class ResNet18WrapperHeadless(nn.Module):
-    def __init__(self):
+    def __init__(self, pretrained="Imagenet"):
         super(ResNet18WrapperHeadless, self).__init__()
-        self.resnet = models.resnet18(pretrained=True)
-        self.features = nn.Sequential(*list(self.resnet.children())[:-1])
+        if pretrained == "Imagenet":
+            self.resnet = models.resnet18(pretrained=True)
+        elif pretrained =="Places365":
+            pretrained_weights = torch.load('/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/models/pre_trained_weights/resnet18_places365.pth', map_location=torch.device('cpu'))
+            # Create a new ordered dictionary with keys without the "module." prefix
+            original_state_dict = pretrained_weights["state_dict"]
+            new_state_dict = OrderedDict()
 
+            for key, value in original_state_dict.items():
+                new_key = key.replace('module.', '')
+                new_state_dict[new_key] = value
+            
+            self.resnet = models.resnet18()
+            self.resnet.fc = torch.nn.Linear(self.resnet.fc.in_features, 365)
+
+            self.resnet.load_state_dict(new_state_dict)
+        self.features = nn.Sequential(*list(self.resnet.children())[:-1])
     def forward(self, x):
         x = self.features(x)
         return x

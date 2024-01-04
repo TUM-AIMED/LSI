@@ -29,20 +29,29 @@ class CPU_Unpickler(pickle.Unpickler):
 def get_grad_data(final_path):
     with open(final_path, 'rb') as file:
         grad_data = pickle.load(file)
-        grad_data = [data.numpy() for data in grad_data]
-    return np.array(grad_data)
+    idxs = []
+    result = []
+    for seed, seed_data in grad_data.items():
+        seed_wise_results = []
+        idx = []
+        for index, idx_data in seed_data.items():
+            idx.append(index)
+            seed_wise_results.append(np.sqrt(np.sum(idx_data)))
+        result.append(seed_wise_results)
+        idxs.append(idx)
+    if not all(inner_list == idxs[0] for inner_list in idxs):
+        raise Exception("some mix up")
+    return np.array(idxs[0]), np.mean(result, axis=0)
 
 
 
 def main():
-    kl_path = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_idp/results_cifar10_resnet18_10_100.0__500_10000/results.pkl"
-    file_name = "z_hist_grad_results_cifar10_resnet18_10_100.0__500_100000"
-    grad_data = get_grad_data(kl_path)
-
-    medians = np.median(grad_data, axis=0)
+    grad_path = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_idp/results_cifar100compressed_logreg4_1_100.0_1e-07__1000_50000/results.pkl"
+    file_name = "z_hist_grad_cifar100compressed_logreg4_1_100.0_1e-07__1000_50000"
+    idx, grad_data_mean = get_grad_data(grad_path)
 
     plt.figure(figsize=(8, 6))
-    plt.hist(medians, bins="auto", edgecolor='blue', alpha=0.7)
+    plt.hist(grad_data_mean, bins="auto", edgecolor='blue', alpha=0.7)
     plt.xlabel("KL1 - Diag")
     plt.ylabel("Count")
 

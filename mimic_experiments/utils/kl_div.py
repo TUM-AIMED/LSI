@@ -7,10 +7,17 @@ from backpack.extensions import (
     KFAC
 )
 import time
+import pickle
+from collections import defaultdict
+from Datasets.dataset_helper import get_dataset
 
 
 
 def _computeKL(mean1, mean2, precision1, precision2):
+    mean1 = np.longdouble(mean1)
+    mean2 = np.longdouble(mean2)
+    precision1 = np.longdouble(precision1)
+    precision2 = np.longdouble(precision2)
     def _compute_log_det(diag_array):
         det = np.sum(np.log(diag_array))
         return det
@@ -19,21 +26,16 @@ def _computeKL(mean1, mean2, precision1, precision2):
 
     inv_precision1 = 1/precision1
     inv_precision2 = 1/precision2
-    # plot_and_save_histogram(precision1, "z"+ addit + "_prec_1", bins=100)
-    # plot_and_save_histogram(precision2, "z"+ addit + "_prec_2", bins=100)
-    # plot_and_save_histogram(inv_precision1, "z"+ addit + "_inv_1", bins=100)
-    # plot_and_save_histogram(inv_precision2, "z"+ addit + "_inv_2", bins=100)
-    # plot_and_save_lineplot([*range(len(inv_precision1))], inv_precision1, "z"+ addit + "_inv_line1")
-    # plot_and_save_lineplot([*range(len(inv_precision2))], inv_precision2, "z"+ addit + "_inv_line2")
-    # plot_and_save_lineplot([*range(len(inv_precision2))], inv_precision1 - inv_precision2, "z"+ addit + "_inv_line_diff")
-    # plot_and_save_lineplot([*range(len(inv_precision2))], np.multiply(mean_difference, np.multiply(precision2, mean_difference)), "z"+ addit + "_quad_term")
-    # plot_and_save_lineplot_with_running_sum([*range(len(inv_precision2))], np.multiply(precision2, inv_precision1) - 1, "z"+ addit + "_trace_term")
-    # plot_and_save_lineplot_with_running_sum([*range(len(inv_precision2))], np.log(inv_precision2) - np.log(inv_precision1), "z"+ addit + "_det_term")
-
+    part1 = np.sum(np.multiply(precision2, inv_precision1))
+    part2 = np.sum(np.multiply(mean_difference, np.multiply(precision2, mean_difference))) 
+    part3 = len(mean1) 
+    part4 = _compute_log_det(inv_precision2) - _compute_log_det(inv_precision1)
     kl = 0.5*(np.sum(np.multiply(precision2, inv_precision1)) 
               + np.sum(np.multiply(mean_difference, np.multiply(precision2, mean_difference))) 
               - len(mean1) 
               + _compute_log_det(inv_precision2) - _compute_log_det(inv_precision1))
+    if kl < -0.00:
+        print("shit")
     return kl   
 
 def _create_laplace_approx(backend_class, representation, model, train_loader, subset_of_weights="all"):
@@ -222,19 +224,23 @@ def _computeKL_from_full(mean1, mean2, prec1, prec2):
 def computeKL(DEVICE, backend_class, representation, model_rm, model_all, train_loader, train_loader_rm, weight_reg, subset_of_weights="all"):
     mean1, prec1 = _create_laplace_approx(backend_class, representation, model_all, train_loader, subset_of_weights=subset_of_weights)
     mean2, prec2 = _create_laplace_approx(backend_class, representation, model_rm,  train_loader_rm, subset_of_weights=subset_of_weights)
-    kl1_elem, kl2_elem = elem_wise_KL(DEVICE, mean1, mean2, prec1, prec2)
+    # kl1_elem, kl2_elem = elem_wise_KL(DEVICE, mean1, mean2, prec1, prec2)
+    kl1_elem = 0
+    kl2_elem = 0
     start_time = time.time()
     if representation == "kron":
         kl1, kl2 = _computeKL_from_kron(DEVICE, mean1, mean2, prec1, prec2, weight_reg)
     elif representation == "diag":
         kl1 = _computeKL(mean1, mean2, prec1, prec2)
-        kl2 = _computeKL(mean2, mean1, prec2, prec1)
+        # kl2 = _computeKL(mean2, mean1, prec2, prec1)
+        kl2 = 0
     elif representation == "full":
         kl1, kl2 = _computeKL_from_full(mean1, mean2, prec1, prec2)
     mean_diff_sum = np.sum(abs(mean1 - mean2))
     mean_diff_mean = np.mean(mean1 - mean2)
-    print(f"kl1 {kl1} kl2 {kl2} ")
-    print(f"computation took {time.time() - start_time}")
+    # print(f"kl1 {kl1} kl2 {kl2} ")
+    # print(f"computation took {time.time() - start_time}")
+
     return kl1, kl2, mean_diff_sum, mean_diff_mean, kl1_elem, kl2_elem
 
 # Manual computation of block diag
@@ -372,3 +378,89 @@ def elem_wise_KL(DEVICE, mean0, mean1, precision0, precision1):
     kl1 = one_dir_kl(mean0, mean1, precision0, precision1)
     kl2 = one_dir_kl(mean1, mean0, precision1, precision0)
     return kl1, kl2
+
+
+def load_sorted_idx(path):
+    with open(path, 'rb') as file:
+        grad_data = pickle.load(file)
+    idxs = []
+    result = []
+    for seed, seed_data in grad_data.items():
+        seed_wise_results = []
+        idx = []
+        for index, idx_data in seed_data.items():
+            idx.append(index)
+            seed_wise_results.append(np.sqrt(np.sum(idx_data)))
+        result.append(seed_wise_results)
+        idxs.append(idx)
+    if not all(inner_list == idxs[0] for inner_list in idxs):
+        raise Exception("some mix up")
+
+    idx = idxs[0]
+    result = np.mean(result, axis=0)
+    combined_data = list(zip(result, idx))
+    sorted_data = sorted(combined_data, key=lambda x: np.median(x[0]))
+    kl1_diag, idx = zip(*sorted_data)
+    return list(idx)
+
+
+def get_images_form_idx(idxs):
+    dataset_class, data_path = get_dataset("cifar100")
+    data_set = dataset_class(data_path, train=True)
+    # data_set._set_classes([0, 5])
+    # data_set._set_classes([4, 9]) # mnist
+    images = []
+    labels =[]
+    labels = data_set.labels[idxs]
+    images = data_set.data[idxs]
+    images = [im.transpose(1, 2, 0) for im in images]
+    return images, labels
+
+def load_sorted_classes(path):
+    with open(path, 'rb') as file:
+        grad_data = pickle.load(file)
+    idxs = []
+    result = []
+    for seed, seed_data in grad_data.items():
+        seed_wise_results = []
+        idx = []
+        for index, idx_data in seed_data.items():
+            idx.append(index)
+            seed_wise_results.append(np.sqrt(np.sum(idx_data)))
+        result.append(seed_wise_results)
+        idxs.append(idx)
+    if not all(inner_list == idxs[0] for inner_list in idxs):
+        raise Exception("some mix up")
+
+    idx = idxs[0]
+    result = np.mean(result, axis=0)
+    combined_data = list(zip(result, idx))
+    sorted_data = sorted(combined_data, key=lambda x: np.median(x[0]))
+    kl1_diag, idx = zip(*sorted_data)
+    images, label = get_images_form_idx(idx)
+
+    all_dict = defaultdict(list)
+    for lab, data in zip(label, kl1_diag):
+        all_dict[lab].append(data)
+
+    all_list = []
+    keys = []
+    for key, value in all_dict.items():
+        all_list.append(value)
+        keys.append(key)
+        
+    combined_data = list(zip(all_list, keys))
+    sorted_data = sorted(combined_data, key=lambda x: np.median(x[0]))
+    all_list, keys = zip(*sorted_data)
+    return list(keys)
+
+def load_label_sorted_idx(label, dataset_name):
+    dataset_class, data_path = get_dataset(dataset_name)
+    data_set = dataset_class(data_path, train=True)
+    sorted_idx = []
+    idx_w_lab = zip(data_set.active_indices, data_set.labels)
+    for lab_l in label:
+        label_list = [idx for idx, lab in idx_w_lab if lab == lab_l]
+        sorted_idx.append(label_list)
+    return sorted_idx
+

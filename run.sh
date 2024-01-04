@@ -1,9 +1,9 @@
 #!/bin/sh
  
-#SBATCH --job-name=kl_v_long
-#SBATCH --output=./out/kl_v_long-%A.out  # Standard output of the script (Can be absolute or relative path). %A adds the job id to the file name so you can launch the same script multiple times and get different logging files
-#SBATCH --error=./out/kl_v_long-%A.err  # Standard error of the script
-#SBATCH --time=0-2:00:00  # Limit on the total run time (format: days-hours:minutes:seconds)
+#SBATCH --job-name=kl
+#SBATCH --output=./out/kl-%A.out  # Standard output of the script (Can be absolute or relative path). %A adds the job id to the file name so you can launch the same script multiple times and get different logging files
+#SBATCH --error=./out/kl-%A.err  # Standard error of the script
+#SBATCH --time=1-2:00:00  # Limit on the total run time (format: days-hours:minutes:seconds)
 #SBATCH --gres=gpu:1  # Number of GPUs if needed
 #SBATCH --cpus-per-task=8  # Number of CPUs (Don't use more than 24 per GPU)
 #SBATCH --mem=48G  # Memory in GB (Don't use more than 48GB per GPU unless you absolutely need it and know what you are doing)
@@ -18,4 +18,4 @@ ml python/anaconda3
 # conda activate indiv_privacy # If this does not work, try 'source activate ptl'
  
 # run the program
-python mimic_experiments/compute_kl_mnist.py --n_seeds 3 --n_rem 1000 --freeze false --epochs 50 --model logreg4 --dataset cifar100compressed --kllayer all --corrupt "" --repr diag --lap_type asdlgnn --name_ext convex_SGD_Plane_vs_Lion --subset 1000
+python mimic_experiments/compute_kl_mnist.py --n_seeds 1 --n_rem 15000 --freeze false --epochs 100 --model logreg4 --dataset cifar10compressed --subset 15000 --kllayer all --corrupt "" --repr diag --lap_type asdlgnn --lr 0.1

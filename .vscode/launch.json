@@ -3,6 +3,7 @@
     "configurations": [
 
 
+
         {
             "name": "Current_compute_file",
             "type": "python",
@@ -27,7 +28,8 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "justMyCode": true
+            "justMyCode": false, 
+            "host": "131.159.110.9"
         },
     ]
 }

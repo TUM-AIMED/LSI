@@ -17,6 +17,7 @@ class CIFAR100(Dataset):
         test_files = ["test"]
         data = []
         labels = []
+        self.gray = False
 
         if train:
             for file_name in data_files:
@@ -40,6 +41,14 @@ class CIFAR100(Dataset):
         self.transform = transform
         self.labels_str = np.unique(self.labels)
         self.active_indices = np.array(range(len(self.data)))
+        self.get_normalization()
+
+    def get_normalization(self):
+        transform = transforms.Compose([transforms.ToTensor(), transforms.Grayscale(num_output_channels=3)])
+        transformed_data = np.array([transform(data.transpose(1, 2, 0)).numpy() for data in self.data])
+
+        self.norm = [np.mean(transformed_data[:, i, :, :]) for i in range(transformed_data.shape[1])]
+        self.std = [np.std(transformed_data[:, i, :, :]) for i in range(transformed_data.shape[1])]
         
     def reduce_to_active(self, remaining_idx):
         self.data = self.data[remaining_idx]
@@ -69,13 +78,20 @@ class CIFAR100(Dataset):
     def __len__(self):
         return len(self.data)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx, normalize=True):
         image = self.data[idx]
         label = self.labels[idx]
         attributes = torch.empty((2,3), dtype=torch.int64)
         image = image.transpose(1, 2, 0)
-        transform = transforms.Compose([transforms.ToTensor(),
-                                transforms.Normalize([0.5071, 0.4865, 0.4409], [0.2673, 0.2564, 0.2762])])
+        if normalize:
+            if self.gray:
+                transform = transforms.Compose([transforms.ToTensor(), transforms.Grayscale(num_output_channels=3),
+                                                transforms.Normalize([0.4874333, 0.4874333, 0.4874333], [0.25059983, 0.25059983, 0.25059983])])
+            else:
+                transform = transforms.Compose([transforms.ToTensor(),
+                            transforms.Normalize([0.5071, 0.4865, 0.4409], [0.2673, 0.2564, 0.2762])])
+        else:
+            transform = transforms.ToTensor()
         # transform = transforms.ToTensor()
         tensor_image = transform(image)
         tensor_image = tensor_image.to(torch.float32)

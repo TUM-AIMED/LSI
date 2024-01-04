@@ -159,7 +159,13 @@ class CIFAR10(Dataset):
         self.data = self.data[remaining_idx]
         self.labels = self.labels[remaining_idx]
         self.active_indices = self.active_indices[remaining_idx]
-
+        
+    def reduce_to_active_class(self, remaining_class):
+        mask = [idx for idx in range(len(self.labels)) if self.labels[idx] in remaining_class]
+        self.data = self.data[mask]
+        self.labels = self.labels[mask]
+        self.active_indices = self.active_indices[mask]
+        
     def remove_curr_index_from_data(self, idx):
         current_idx = idx
         self.data = np.delete(self.data, current_idx, axis=0)

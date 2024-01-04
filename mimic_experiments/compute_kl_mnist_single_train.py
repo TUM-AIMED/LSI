@@ -135,7 +135,7 @@ def train(
         if scheduler != None:
             scheduler.step()
         # print(f"Epoch {epoch} with training_loss {train_loss} and val_loss {val_loss}")
-    print(f"train accuracy {test_accuracy:.4f}")
+        print(f"train accuracy {test_accuracy:.4f}")
     print(f"val accuracy {val_accuracy:.4f}")
     return model, epoch
 
@@ -178,13 +178,16 @@ def train_with_params(
 
     criterion = torch.nn.CrossEntropyLoss(reduction='mean')
 
-    optimizer = torch.optim.AdamW(
+    optimizer = torch.optim.SGD(
         model.parameters(),
         lr=params["training"]["learning_rate"],
-        weight_decay=params["training"]["l2_regularizer"],
-    )
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, [150, 500, 750, 1000], gamma=0.5)
-
+        weight_decay=params["training"]["l2_regularizer"], momentum=0.9, nesterov=True)
+    # optimizer = torch.optim.LBFGS(
+    #     model.parameters(),
+    #     max_iter=20,
+    #     lr=1e-3,
+    #     line_search_fn="strong_wolfe") 
+    scheduler = None # torch.optim.lr_scheduler.MultiStepLR(optimizer, [700, 1000, 1200, 1400], gamma=0.5)
 
 
     return criterion, train(
@@ -209,9 +212,9 @@ if __name__ == "__main__":
     - edit: json_file_path for config file
     """ 
     parser = argparse.ArgumentParser(description="Process optional float inputs.")
-    parser.add_argument("--n_rem", type=int, default=200, help="Value for lerining_rate (optional)")
+    parser.add_argument("--n_rem", type=int, default=400, help="Value for lerining_rate (optional)")
     parser.add_argument("--n_seeds", type=int, default=10, help="Value for lerining_rate (optional)")
-    parser.add_argument("--name", type=str, default="cifar_cnn_10_200_once_noisy_longer", help="Value for lerining_rate (optional)")
+    parser.add_argument("--name", type=str, default="cifar_cnn_100_400_once", help="Value for lerining_rate (optional)")
     parser.add_argument("--repr", type=str, nargs='*', default=["diag"], help="Value for lerining_rate (optional)")
     parser.add_argument("--lap_type", type=str, default="asdlgnn", help="Value for lerining_rate (optional)")
     args = parser.parse_args()
@@ -243,16 +246,16 @@ if __name__ == "__main__":
     params["save"] = True
     params["model"] = {}
     params["model"]["seed"] = 472168
-    params["model"]["model"] = "cnn"
-    params["model"]["dataset_name"] = "cifar10"
+    params["model"]["model"] = "logreg4"
+    params["model"]["dataset_name"] = "cifar100compressed"
     params["model"]["name_base"] = "laplace_mnist_"
     params["model"]["name"] = "laplace_mnist_"
     params["model"]["name"] = params["model"]["name_base"] + str(try_num)
     params["training"] = {}
     params["training"]["batch_size"] = 256
-    params["training"]["learning_rate"] = 4e-03# 0.002 mlp #3e-03 # -3 for mnist
-    params["training"]["l2_regularizer"] = 3e-04
-    params["training"]["num_epochs_init"] = 300
+    params["training"]["learning_rate"] = 1e-02# 0.002 mlp #3e-03 # -3 for mnist
+    params["training"]["l2_regularizer"] = 1e-08
+    params["training"]["num_epochs_init"] = 1000
     params["testing"] = {}
     params["testing"]["test_every"] = params["training"]["num_epochs_init"] + 1
     params["Paths"] = {}
@@ -266,14 +269,14 @@ if __name__ == "__main__":
 
     data_set = data_set_class(data_path, train=True)
 
-    keep_indices = [*range(1500)]
+    keep_indices = [*range(50000)]
     data_set.reduce_to_active(keep_indices)
-    random_labels_idx = None
-    n = int(0.05 * len(keep_indices))
-    random_labels_idx = random.sample([*range(N_REMOVE)], n)
-    data_set.apply_label_noise(random_labels_idx)
-    # # data_set.apply_image_mark(random_labels_idx)
-    # random_labels_idx = data_set.apply_group_label_noise(under=N_REMOVE)
+    # random_labels_idx = None
+    # n = int(0.05 * len(keep_indices))
+    # random_labels_idx = random.sample([*range(N_REMOVE)], n)
+    # data_set.apply_label_noise(random_labels_idx)
+    # # # data_set.apply_image_mark(random_labels_idx)
+    # # random_labels_idx = data_set.apply_group_label_noise(under=N_REMOVE)
 
 
     data_set_test = data_set_class(data_path, train=False)
@@ -350,17 +353,17 @@ if __name__ == "__main__":
             start_time = time.time()
             if "kron" in representation:
                 print("Compute Kron", flush=True)
-                kl1_1, kl2_1, mean_diff_s, mean_diff_m = computeKL(DEVICE, backend_class, "kron", model_all, train_loader_0, train_loader_rm, params["training"]["l2_regularizer"]) 
+                kl1_1, kl2_1, mean_diff_s, mean_diff_m, _, _ = computeKL(DEVICE, backend_class, "kron", model_all, model_all, train_loader_0, train_loader_rm, params["training"]["l2_regularizer"]) 
                 resultskl1_kron[seed][true_rm_idx] = kl1_1
                 resultskl2_kron[seed][true_rm_idx] = kl2_1
             if "diag" in representation:
                 print("Compute Diag", flush=True)
-                kl1_2, kl2_2, mean_diff_s, mean_diff_m = computeKL(DEVICE, backend_class, "diag", model_all, train_loader_0, train_loader_rm, params["training"]["l2_regularizer"]) 
+                kl1_2, kl2_2, mean_diff_s, mean_diff_m, _, _ = computeKL(DEVICE, backend_class, "diag", model_all, model_all, train_loader_0, train_loader_rm, params["training"]["l2_regularizer"]) 
                 resultskl1_diag[seed][true_rm_idx] = kl1_2
                 resultskl2_diag[seed][true_rm_idx] = kl2_2
             if "full" in representation:
                 print("Compute Full", flush=True)
-                kl1_3, kl2_3, mean_diff_s, mean_diff_m = computeKL(DEVICE, backend_class, "full", model_all, train_loader_0, train_loader_rm, params["training"]["l2_regularizer"]) 
+                kl1_3, kl2_3, mean_diff_s, mean_diff_m, _, _ = computeKL(DEVICE, backend_class, "full", model_all, model_all, train_loader_0, train_loader_rm, params["training"]["l2_regularizer"]) 
                 resultskl1_full[seed][true_rm_idx] = kl1_3
                 resultskl2_full[seed][true_rm_idx] = kl2_3
             print(f"kl computation took {time.time() - start_time}", flush=True)            
@@ -381,9 +384,9 @@ if __name__ == "__main__":
         "labels": resultstarget,
         "mean_diff_sum": mean_diff_sum,
         "mean_diff_mean": mean_diff_mean,
-        "random_labels_idx": random_labels_idx
+        "random_labels_idx": None
     }
-    with open(params["Paths"]["final_save_path"] + "/results_all.pkl", 'wb') as file:
+    with open(params["Paths"]["final_save_path"] + "/results_single_layer_train.pkl", 'wb') as file:
         pickle.dump(results_all, file)
-    print(f'Saving at {params["Paths"]["final_save_path"] + "/results_all.pkl"}')
+    print(f'Saving at {params["Paths"]["final_save_path"] + "/results_single_layer_train.pkl"}')
 

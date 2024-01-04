@@ -12,6 +12,7 @@ from matplotlib import animation
 from Datasets.dataset_helper import get_dataset
 import cv2
 from collections import defaultdict
+from tqdm import tqdm
 
 
 plt.rcParams.update({
@@ -103,14 +104,29 @@ def get_correct(final_path):
     count_per_column = count_per_column/all_pred.shape[0]
     return predict_own_list, count_per_column
 
+def get_images_form_idx(idxs):
+    dataset_class, data_path = get_dataset("cifar100")
+    data_set = dataset_class(data_path, train=True)
+    # data_set._set_classes([0, 5])
+    # data_set._set_classes([4, 9]) # mnist
+    images = []
+    labels =[]
+    labels = data_set.labels[idxs]
+    images = data_set.data[idxs]
+    images = [im.transpose(1, 2, 0) for im in images]
+    return images, labels
+
 
 def main():
-    kl_path = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_indiv_script/results_cifar100compressed_logreg4_2_400__1000_50000_0.5969convex_SGD/results_all.pkl"
-    file_name = "z_boxplot_cifar100compressed_logreg4_2_400__1000_50000_0.5969convex_SGD"
+    kl_path = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_indiv_script_final/results_cifar100compressed_logreg4_5_400__800_50000_0.4258_0.1/results_all.pkl"
+    file_name = "z_boxplot_final_cifar100compressed_logreg4_5_400__800_50000_0.4258_0.1"
     rand = True
-    kl1_diag, init_idx, rand_labels_idx = get_kl_data(kl_path, "kl2_diag", rand=rand)
+    kl1_diag, init_idx, rand_labels_idx = get_kl_data(kl_path, "kl1_diag", rand=rand)
+    mean_diff, _, _= get_kl_data(kl_path, "mean_diff_sum", rand=rand)
+
     kl1_diag = np.abs(kl1_diag)
     predict_own_list, count_per_column = get_correct(final_path=kl_path)
+    images, labels = get_images_form_idx(init_idx)
     # predicted_own = 1 if predicted in all tasks even though excluded
     # count_per_col = 1 if predicted in all tasks
     combined_data = list(zip(kl1_diag, init_idx))
@@ -118,7 +134,12 @@ def main():
     kl1_diag, idx = zip(*sorted_data)
 
     plt.figure(figsize=(50, 6))
-    plt.boxplot(kl1_diag, labels=idx)
+    # plt.boxplot(kl1_diag, labels=idx)
+    xs = [*range(len(kl1_diag))]
+    ys = np.mean(kl1_diag, axis=1)
+    plt.scatter([*range(len(kl1_diag))], np.mean(kl1_diag, axis=1))
+    # plt.scatter([*range(len(kl1_diag))], np.mean(mean_diff, axis=1))
+
     plt.xlabel("Index")
     plt.ylabel("KL1 - Diag")
 
@@ -127,15 +148,28 @@ def main():
             if true_idx > max(idx):
                 continue
             plot_index = list(idx).index(true_idx)
-            plt.scatter(plot_index + 1, 0.0, color='blue')
-    for true_idx in idx:
-        plot_index = list(idx).index(true_idx)
-        plt.scatter(plot_index + 1, -0.5, color=str(predict_own_list[init_idx.index(true_idx)]),edgecolors='black') # the more white the more often predicted when excluded
-        plt.scatter(plot_index + 1, -0.9, color=str(count_per_column[init_idx.index(true_idx)]),edgecolors='black') # the more white the more often predicted overall
+            # plt.scatter(plot_index + 1, 0.0, color='blue')
+    
+    plot_index = [list(idx).index(true_idx) + 1 for true_idx in idx]
+    color1 = [str(predict_own_list[init_idx.index(true_idx)]) for true_idx in idx]
+    color2 = [str(count_per_column[init_idx.index(true_idx)]) for true_idx in idx]
 
+    y1 = [-0.05 for true_idx in idx]
+    y2 = [-0.15 for true_idx in idx]
+
+    plt.scatter(plot_index, y1, color=color1, edgecolors='black') # the more white the more often predicted when excluded
+    plt.scatter(plot_index, y2, color=color2, edgecolors='black') # the more white the more often predicted overall
+        
+    # for true_idx in idx:
+    #     plot_index = list(idx).index(true_idx)
+    #     if labels[init_idx.index(true_idx)] == 32:
+    #         plt.scatter(plot_index + 1, -13, color= "1", edgecolors='black')
+    #     elif labels[init_idx.index(true_idx)] == 39:
+    #         plt.scatter(plot_index + 1, -13, color= "0", edgecolors='black')
+    #     elif labels[init_idx.index(true_idx)] == 91:
+    #         plt.scatter(plot_index + 1, -13, color= "0.5", edgecolors='black')
 
     plt.tight_layout()
-    plt.show()
     plt.savefig(file_name + ".jpg")
     print(f"saving fig as ./{file_name}.jpg")
 

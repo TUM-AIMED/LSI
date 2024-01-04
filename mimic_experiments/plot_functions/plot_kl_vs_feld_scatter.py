@@ -78,22 +78,24 @@ def get_feld_scores(feld_path, idx):
     return indexed_memorization
 
 def main():
-    kl_path = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_indiv_script/results_cifar100compressed_logreg4_3_1000__30_1000_0.9850convex_SGD_Plane_vs_Lion/results_all.pkl"
+    kl_path = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_indiv_script/results_cifar100compressed_logreg4_2_400__1000_50000_0.5969convex_SGD/results_all.pkl"
     feld_path = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/Feld_Score/cifar100_infl_matrix.npz"
-    file_name = "z_kl_vs_feld_scatter_cifar100compressed_logreg4_3_1000__30_1000_0.9850convex_SGD_Plane_vs_Lion"
+    file_name = "z_kl_vs_feld_scatter_cifar100compressed_logreg4_2_400__1000_50000_0.5969convex_SGD"
     kl_diag1, idx, _ = get_kl_data(kl_path, "kl2_diag")
     kl_diag1 = [np.mean(data) for data in kl_diag1]
     combined_data = list(zip(kl_diag1, idx))
     sorted_data = sorted(combined_data, key=lambda x: np.median(x[0]))
     kl_diag1, idx = zip(*sorted_data)
+    idx = list(idx)
 
-    first_10 = kl_diag1[:10]
-    last_10 = kl_diag1[-10:]
-    kl_diag1 = first_10 + last_10
+    # kl_diag1 = list(kl_diag1)
+    # first_10 = kl_diag1[:50]
+    # last_10 = kl_diag1[-20:]
+    # kl_diag1 = list(first_10 + last_10)
 
-    first_10 = idx[:10]
-    last_10 = idx[-10:]
-    idx = first_10 + last_10
+    # first_10 = idx[:50]
+    # last_10 = idx[-20:]
+    # idx = list(first_10 + last_10)
 
     feld_scores = get_feld_scores(feld_path, idx)
 
@@ -102,8 +104,8 @@ def main():
 
 
     fig, ax = plt.subplots(1,figsize=(6,6))
-    # plt.scatter(kl_diag1, feld_scores, marker='o', color='blue')
-    imscatter(kl_diag1, feld_scores, images, ax=None, zoom=1)
+    plt.scatter(kl_diag1, feld_scores, marker='o', color='blue')
+    # imscatter(kl_diag1, feld_scores, images, ax=None, zoom=1)
     plt.xlabel("kl_diag2 - 200")
     plt.ylabel("Mem-scores")
  

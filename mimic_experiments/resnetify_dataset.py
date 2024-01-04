@@ -3,7 +3,7 @@ import os
 
 from models.model_helper import get_model
 from Datasets.dataset_helper import get_dataset
-
+from tqdm import tqdm
 import torch
 import numpy as np
 import warnings
@@ -19,7 +19,7 @@ if __name__ == "__main__":
     """ 
     parser = argparse.ArgumentParser(description="Process optional float inputs.")
     parser.add_argument("--model", type=str, default="resnet18_headless", help="Value for lerining_rate (optional)")
-    parser.add_argument("--dataset", type=str, default="cifar100", help="Value for lerining_rate (optional)")
+    parser.add_argument("--dataset", type=str, default="Imagenet", help="Value for lerining_rate (optional)")
 
 
     args = parser.parse_args()
@@ -43,7 +43,7 @@ if __name__ == "__main__":
 
     train_loader = torch.utils.data.DataLoader(
         data_set,
-        batch_size=len(data_set), # params["training"]["batch_size"],
+        batch_size=1, # params["training"]["batch_size"],
         shuffle=False,
         num_workers=0,
         pin_memory=False,
@@ -51,7 +51,7 @@ if __name__ == "__main__":
 
     test_loader = torch.utils.data.DataLoader(
         data_set_test,
-        batch_size=len(data_set_test), # params["training"]["batch_size"],
+        batch_size=1, # params["training"]["batch_size"],
         shuffle=False,
         num_workers=0,
         pin_memory=False,
@@ -61,25 +61,34 @@ if __name__ == "__main__":
 
     model_class = get_model(params["model"]["model"])
     if params["model"]["model"] == "mlp" or params["model"]["model"] == "small_mlp" or params["model"]["model"] == "logreg":
+        train_X_example = 10
         model = model_class(len(torch.flatten(train_X_example))).to(DEVICE)
     else:
-        model = model_class()
+        model = model_class(pretrained="Places365")
         model = model.to(DEVICE)
 
-    def compress_dataset(model, dataset):
-        model.eval()
-        start_time = time.time()
-        for _, (data, target, idx, _) in enumerate(dataset):
-            data, target = data.to(DEVICE), target.to(DEVICE)
-            output = model(data)
-        return torch.squeeze(output), target
+    def compress_dataset(model, dataset, path):
+        if not os.path.exists(params["save_path"] + path + "/data/"):
+            os.makedirs(params["save_path"] + path + "/data/")
+        if not os.path.exists(params["save_path"] + path + "/targets/"):
+            os.makedirs(params["save_path"] + path + "/targets/")
 
-    data, target = compress_dataset(model, train_loader)
-    data_test, target_test = compress_dataset(model, test_loader)
-    if not os.path.exists(params["save_path"]):
-        os.makedirs(params["save_path"])
-    torch.save(data, params["save_path"] + "/train_data.pt")
-    torch.save(target, params["save_path"] + "/train_target.pt")
-    torch.save(data_test, params["save_path"] + "/test_data.pt")
-    torch.save(target_test, params["save_path"] + "/test_target.pt")
+        model.eval()
+        targets = []
+        idxs = []
+        for _, (data, target, idx, _) in tqdm(enumerate(dataset)):
+            torch.cuda.empty_cache()
+            data, target = data.to(DEVICE), target.to(DEVICE)
+            res = model(data)
+            targets.append(target.cpu().item())
+            idxs.append(idx.item())
+            torch.save(torch.squeeze(res).cpu(), params["save_path"] + path + "/data/" + str(idx.item()) + ".pt")
+        torch.save([targets, idxs], params["save_path"] + path + "/targets/" + "target.pt")
+
+        print(f'saving under {params["save_path"] + path + "/"}')
+        return 
+    
+    # compress_dataset(model, test_loader, "/test_data2")
+    compress_dataset(model, train_loader, "/train_data2")
+    
     

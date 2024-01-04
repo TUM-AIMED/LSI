@@ -15,6 +15,7 @@ from models.log_reg import LogisticRegression
 from models.log_reg2 import LogisticRegression2
 from models.log_reg3 import LogisticRegression3
 from models.log_reg4 import LogisticRegression4
+from models.log_reg5 import LogisticRegression5
 
 def get_model(keyword):
     if keyword == "mlp":
@@ -51,5 +52,7 @@ def get_model(keyword):
         return LogisticRegression3
     elif keyword == "logreg4":
         return LogisticRegression4
+    elif keyword == "logreg5":
+        return LogisticRegression5
     else:
         raise ValueError("Invalid keyword. Please provide a valid keyword.")

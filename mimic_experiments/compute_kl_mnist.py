@@ -23,23 +23,6 @@ from utils.plot_utils import plot_and_save_histogram, plot_and_save_lineplot, pl
 os.environ["CUBLAS_WORKSPACE_CONFIG"]=":4096:8"
 
 
-class EarlyStopper:
-    def __init__(self, patience=1, min_delta=0):
-        self.patience = patience
-        self.min_delta = min_delta
-        self.counter = 0
-        self.min_validation_loss = float('inf')
-
-    def early_stop(self, validation_loss):
-        if validation_loss < self.min_validation_loss:
-            self.min_validation_loss = validation_loss
-            self.counter = 0
-        elif validation_loss > (self.min_validation_loss + self.min_delta):
-            self.counter += 1
-            if self.counter >= self.patience:
-                return True
-        return False       
-
 
 def normal_train_step(params,
                model, 
@@ -127,6 +110,7 @@ def normal_train_step(params,
             loss = criterion(output, target)
             _, predicted = torch.max(output.data, 1)
             total += target.size(0)
+            correct_pred = predicted==target
             correct += (predicted == target).sum().item()
             loss.backward()
             optimizer.step()
@@ -135,7 +119,7 @@ def normal_train_step(params,
             optimizer.zero_grad()
             torch.cuda.empty_cache()
             # print(f"training accuracy {accuracy:.4f}, loss {loss:.4f}, epoch took {time.time() - start_time:.4f}")
-            return np.mean(np.array(loss_list)), accuracy
+            return np.mean(np.array(loss_list)), accuracy, correct_pred
         
 def normal_val_step(params,
                model, 
@@ -177,17 +161,18 @@ def train(
     rem = False
 ):
 
-    early_stopper = EarlyStopper(patience=5000, min_delta=0.2) 
     data = None
     target = None
     idx = None   
     if params["Full_Batch"]:
         data, target, idx, _ = next(iter(train_loader_0))
         data, target = data.to(DEVICE), target.to(DEVICE)
+
+    correct_pred_list = []
     for epoch in range(params["training"]["num_epochs"]):
         # print(epoch)
         model.train()
-        train_loss, train_accuracy = normal_train_step(params,
+        train_loss, train_accuracy, correct_pred = normal_train_step(params,
                model, 
                optimizer, 
                DEVICE, 
@@ -196,6 +181,8 @@ def train(
                data=data,
                target=target,
                idx=idx)
+        if not rem:
+            correct_pred_list.append(correct_pred)
         model.eval()
         if epoch % params["testing"]["test_every"] == 0:
             val_loss, val_accuracy = normal_val_step(params,
@@ -204,10 +191,6 @@ def train(
                 DEVICE, 
                 criterion, 
                 test_loader)
-        if not rem:
-            if early_stopper.early_stop(val_loss): 
-                print(f"Stopping early at epoch {epoch}")            
-                break
         if scheduler != None:
             scheduler.step()
     print(f"Epoch {epoch} with training_loss {train_loss} and val_loss {val_loss}")
@@ -215,7 +198,7 @@ def train(
     print(f"val accuracy {val_accuracy:.4f}")
 
     
-    return model, train_accuracy
+    return model, train_accuracy, correct_pred_list
 
 
 def train_with_params(
@@ -245,7 +228,7 @@ def train_with_params(
     N_CLASSES =  len(np.unique(train_loader_0.dataset.labels))
 
     model_class = get_model(params["model"]["model"])
-    if params["model"]["model"] == "mlp" or params["model"]["model"] == "small_mlp" or params["model"]["model"] == "logreg":
+    if params["model"]["model"] == "mlp" or params["model"]["model"] == "small_mlp" or params["model"]["model"] == "logreg4" or params["model"]["model"] == "logreg3":
         model = ModuleValidator.fix_and_validate(model_class(len(torch.flatten(train_X_example)), N_CLASSES).to(DEVICE))
     else:
         model = model_class(len(train_X_example), N_CLASSES)
@@ -263,7 +246,7 @@ def train_with_params(
     #     max_iter=20,
     #     lr=1e-3,
     #     line_search_fn="strong_wolfe") 
-    scheduler = None # torch.optim.lr_scheduler.MultiStepLR(optimizer, [700, 1000, 1200, 1400], gamma=0.5)
+    scheduler =    torch.optim.lr_scheduler.MultiStepLR(optimizer, [250, 350, 450, 550], gamma=0.8)
 
 
 
@@ -289,20 +272,21 @@ if __name__ == "__main__":
     - edit: json_file_path for config file
     """ 
     parser = argparse.ArgumentParser(description="Process optional float inputs.")
-    parser.add_argument("--n_rem", type=int, default=1, help="Value for lerining_rate (optional)")
-    parser.add_argument("--n_seeds", type=int, default=100, help="Value for lerining_rate (optional)")
+    parser.add_argument("--n_rem", type=int, default=50000, help="Value for lerining_rate (optional)")
+    parser.add_argument("--n_seeds", type=int, default=10, help="Value for lerining_rate (optional)")
     parser.add_argument("--name", type=str, default=None, help="Value for lerining_rate (optional)")
     parser.add_argument("--name_ext", type=str, default="")
     parser.add_argument("--repr", type=str, nargs='*', default=["diag"], help="Value for lerining_rate (optional)")
     parser.add_argument("--lap_type", type=str, default="asdlgnn", help="Value for lerining_rate (optional)")
     parser.add_argument("--freeze", type=bool, default=False, help="Value for lerining_rate (optional)")
-    parser.add_argument("--epochs", type=int, default=30, help="Value for lerining_rate (optional)")
+    parser.add_argument("--epochs", type=int, default=8, help="Value for lerining_rate (optional)")
     parser.add_argument("--model", type=str, default="logreg4", help="Value for lerining_rate (optional)")
-    parser.add_argument("--dataset", type=str, default="cifar100compressed", help="Value for lerining_rate (optional)")
+    parser.add_argument("--dataset", type=str, default="cifar10compressed", help="Value for lerining_rate (optional)")
     parser.add_argument("--kllayer", type=str, default="all", help="Value for lerining_rate (optional)")
     parser.add_argument("--corrupt", type=str, default="", help="Value for lerining_rate (optional)")
-    parser.add_argument("--subset", type=int, default=1000, help="Value for lerining_rate (optional)")
-    
+    parser.add_argument("--subset", type=int, default=50000, help="Value for lerining_rate (optional)")
+    parser.add_argument("--lr", type=float, default=1e-1, help="Value for lerining_rate (optional)")
+
 
     args = parser.parse_args()
 
@@ -335,11 +319,11 @@ if __name__ == "__main__":
     params["model"]["dataset_name"] = args.dataset
     params["training"] = {}
     params["training"]["batch_size"] = 50
-    params["training"]["learning_rate"] = 3e-1 #3e-1 for SGD on cifar100 # 6e-03 #cifar100# 2e-3# cifar10 logreg2/ cifar100 logreg3 1k/10k# 4e-02# 0.002 mlp #3e-03 # -3 for mnist
+    params["training"]["learning_rate"] = args.lr # 1e-2 #3e-1 for SGD on cifar100 # 6e-03 #cifar100# 2e-3# cifar10 logreg2/ cifar100 logreg3 1k/10k# 4e-02# 0.002 mlp #3e-03 # -3 for mnist
     params["training"]["l2_regularizer"] = 1e-8
     params["training"]["num_epochs_init"] = args.epochs
     params["testing"] = {}
-    params["testing"]["test_every"] = 1 # params["training"]["num_epochs_init"] + 1
+    params["testing"]["test_every"] = params["training"]["num_epochs_init"] -1
     params["Paths"] = {}
     params["Full_Batch"] = True
 
@@ -356,16 +340,17 @@ if __name__ == "__main__":
     data_set = data_set_class(data_path, train=True)
     data_set_test = data_set_class(data_path, train=False) 
 
-    data_set.reduce_to_active_class([81, 43])
-    data_set_test.reduce_to_active_class([81, 43])
+    class_list = [0, 1, 2]
+    data_set.reduce_to_active_class(class_list)
+    data_set_test.reduce_to_active_class(class_list)
     
     keep_indices = [*range(args.subset)]
     data_set.reduce_to_active(keep_indices)
     random.seed(0)
-    n = int(0.4 * N_REMOVE)
+    n = int(0.1 * N_REMOVE)
     random_labels_idx = []
     if args.corrupt == "noisy":
-        random_labels_idx = [0 + 5 * i for i in range(n) if i < args.subset/5] # random.sample([*range(N_REMOVE)], n)
+        random_labels_idx = random.sample([*range(N_REMOVE)], n)  # [0 + 5 * i for i in range(n) if i < args.subset/5] 
         data_set.apply_label_noise(random_labels_idx)
     elif args.corrupt == "artefact":
         random_labels_idx = random.sample([*range(N_REMOVE)], n)
@@ -379,7 +364,7 @@ if __name__ == "__main__":
     # data_set_test._set_classes([0, 1])
     test_loader = torch.utils.data.DataLoader(
         data_set_test,
-        batch_size=128,
+        batch_size=len(data_set_test),
         shuffle=False,
         num_workers=0,
         pin_memory=False,
@@ -399,6 +384,7 @@ if __name__ == "__main__":
     kl1_elem_dict = {}
     kl2_elem_dict = {}
     correct = {}
+    correct_pred_wo_rm = {}
     for seed in tqdm(range(N_SEEDS)):
         print("--------------------------", flush=True)
         params["training"]["num_epochs"] = params["training"]["num_epochs_init"]
@@ -425,11 +411,12 @@ if __name__ == "__main__":
                 pin_memory=False,
             )
             
-        criterion, (model_all, train_accuracy) = train_with_params(
+        criterion, (model_all, train_accuracy, correct_pred) = train_with_params(
             params,
             train_loader_0,
             test_loader
         )
+        correct_pred_wo_rm[seed] = correct_pred
         DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     
         for rem_idx in range(N_REMOVE):
@@ -449,7 +436,7 @@ if __name__ == "__main__":
             )
             print(f"removing datapoint took {time.time() - start_time}", flush=True)
             start_time = time.time()
-            _, (model_rem, _) = train_with_params(
+            _, (model_rem, _, _) = train_with_params(
                 params,
                 train_loader_rm,
                 test_loader,
@@ -474,6 +461,7 @@ if __name__ == "__main__":
                 kl1_2, kl2_2, mean_diff_s, mean_diff_m, kl1_elem, kl2_elem = computeKL(DEVICE, backend_class, "diag", model_rem, model_all, train_loader_0, train_loader_0, params["training"]["l2_regularizer"], subset_of_weights=params["kllayer"]) 
                 resultskl1_diag[seed][true_rm_idx] = kl1_2
                 resultskl2_diag[seed][true_rm_idx] = kl2_2
+                print(f"kl divergence of {kl1_2}")
             if "full" in representation:
                 print("Compute Full", flush=True)
                 kl1_3, kl2_3, mean_diff_s, mean_diff_m, kl1_elem, kl2_elem = computeKL(DEVICE, backend_class, "full", model_rem, model_all, train_loader_0, train_loader_0, params["training"]["l2_regularizer"], subset_of_weights=params["kllayer"]) 
@@ -496,10 +484,10 @@ if __name__ == "__main__":
             correct[seed][true_rm_idx] = correct_list
 
     if args.name != None:
-        params["Paths"]["final_save_path"] = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_indiv_script/results_" + str(args.name)
+        params["Paths"]["final_save_path"] = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_indiv_script_final/results_" + str(args.name)
     else:
-        name_str = f"{params['model']['dataset_name']}_{params['model']['model']}_{N_SEEDS}_{N_REMOVE}_{args.corrupt}_{args.epochs}_{args.subset}_{train_accuracy:.4f}{args.name_ext}"
-        params["Paths"]["final_save_path"] = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_indiv_script/results_" + name_str
+        name_str = f"{params['model']['dataset_name']}_{params['model']['model']}_{N_SEEDS}_{N_REMOVE}_{args.corrupt}_{args.epochs}_{args.subset}_{train_accuracy:.4f}_{params['training']['learning_rate']}{args.name_ext}"
+        params["Paths"]["final_save_path"] = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_indiv_script_final/results_" + name_str
 
     if not os.path.exists(params["Paths"]["final_save_path"]):
         os.makedirs(params["Paths"]["final_save_path"])
@@ -516,7 +504,8 @@ if __name__ == "__main__":
         "mean_diff_sum": mean_diff_sum,
         "mean_diff_mean": mean_diff_mean,
         "random_labels_idx": true_random_labels_idx,
-        "correct_data": correct
+        "correct_data": correct,
+        "correct_pred": correct_pred_wo_rm
     }
     with open(params["Paths"]["final_save_path"] + "/results_all.pkl", 'wb') as file:
         pickle.dump(results_all, file)
