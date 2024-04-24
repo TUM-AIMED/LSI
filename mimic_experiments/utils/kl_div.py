@@ -18,6 +18,8 @@ def _computeKL(mean1, mean2, precision1, precision2):
     mean2 = np.longdouble(mean2)
     precision1 = np.longdouble(precision1)
     precision2 = np.longdouble(precision2)
+    zer0 = np.count_nonzero(precision1 == 0)
+    zer1 = np.count_nonzero(precision2 == 0)
     def _compute_log_det(diag_array):
         det = np.sum(np.log(diag_array))
         return det
@@ -26,6 +28,8 @@ def _computeKL(mean1, mean2, precision1, precision2):
 
     inv_precision1 = 1/precision1
     inv_precision2 = 1/precision2
+    part0 = np.multiply(precision2, inv_precision1)
+    part00 = np.sum(part0)
     part1 = np.sum(np.multiply(precision2, inv_precision1))
     part2 = np.sum(np.multiply(mean_difference, np.multiply(precision2, mean_difference))) 
     part3 = len(mean1) 
@@ -36,7 +40,7 @@ def _computeKL(mean1, mean2, precision1, precision2):
               + _compute_log_det(inv_precision2) - _compute_log_det(inv_precision1))
     if kl < -0.00:
         print("shit")
-    return kl   
+    return kl, np.sum(mean_difference**2)   
 
 def _create_laplace_approx(backend_class, representation, model, train_loader, subset_of_weights="all"):
     la = Laplace(model, 'classification',
@@ -55,7 +59,7 @@ def _create_laplace_approx(backend_class, representation, model, train_loader, s
         post_prec = la.posterior_precision.cpu().numpy()
     return mean, post_prec    
 
-def _computeblockKL(DEVICE, mean0, mean1, blocks0, blocks1):
+def _computeblockKL(mean0, mean1, blocks0, blocks1):
     def inverse_block_diag(blocks):
         inv = []
         for block in blocks:
@@ -144,8 +148,8 @@ def _computeblockKL(DEVICE, mean0, mean1, blocks0, blocks1):
         # Right multiply
         res = 0
         for block, l_vec, r_vec in zip(blocks, l_vector, r_vector):
-            l_vec = l_vec.to(DEVICE)
-            r_vec = l_vec.to(DEVICE)
+            # l_vec = l_vec.to(DEVICE)
+            # r_vec = l_vec.to(DEVICE)
             if len(block) == 2: #Kron decomposed
                 a1 = block[0]
                 a2 = block[1]
@@ -185,8 +189,8 @@ def _computeblockKL(DEVICE, mean0, mean1, blocks0, blocks1):
         return kl
 
     kl1 = compute_whole_kl(mean0, mean1, blocks0, blocks1)
-    kl2 = compute_whole_kl(mean1, mean0, blocks1, blocks0)
-    return kl1, kl2
+    # kl2 = compute_whole_kl(mean1, mean0, blocks1, blocks0)
+    return kl1
     
 
 def _computeKL_from_full(mean1, mean2, prec1, prec2):
@@ -214,12 +218,13 @@ def _computeKL_from_full(mean1, mean2, prec1, prec2):
         quad_term = diff.T @ iS1 @ diff
         print(f"quad_term  took {time.time() - start_time}")
         #print(tr_term,det_term,quad_term)
-        return .5 * (tr_term + det_term + quad_term - N)
+        return .5 * (tr_term + det_term + quad_term - N), diff
+    print("comp from full")
     cov1 = np.linalg.inv(prec1)
     cov2 = np.linalg.inv(prec2)
-    kl1 = kl_mvn(mean1, cov1, mean2, cov2, prec2)
-    kl2 = kl_mvn(mean2, cov2, mean1, cov1, prec1)
-    return kl1, kl2
+    kl1, diff = kl_mvn(mean1, cov1, mean2, cov2, prec2)
+    # kl2 = kl_mvn(mean2, cov2, mean1, cov1, prec1)
+    return kl1, np.sum(diff**2)# , kl2
 
 def computeKL(DEVICE, backend_class, representation, model_rm, model_all, train_loader, train_loader_rm, weight_reg, subset_of_weights="all"):
     mean1, prec1 = _create_laplace_approx(backend_class, representation, model_all, train_loader, subset_of_weights=subset_of_weights)

@@ -10,7 +10,6 @@ import sys
 import threading
 from multiprocessing import Pool
 import os
-from opacus.utils.batch_memory_manager import BatchMemoryManager
 from utils.rdp_accountant import compute_rdp, get_privacy_spent
 from utils.idp_tracker_utils import get_grad_batch_norms2
 

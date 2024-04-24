@@ -41,24 +41,30 @@ def get_ordering(path, kind):
     return
 
 
-def reduce_classes(tp, target, ordering_smallst, ordering_largest, random_first_ordering, portion):
+def reduce_classes(combination, target, ordering_smallst, ordering_largest, random_first_ordering, portion):
     # random
     indices_r = []
+    indices_s = []
+    indices_l = []
 
-    if tp == "low": 
-        ordering = ordering_smallst
-    elif tp == "high":
-        ordering = ordering_largest
-    elif tp == "rand":
-        ordering = random_first_ordering
-       
-    for label in np.unique(target):
-        class_mask1 = target[ordering] == label
-        indices = np.array(ordering)[class_mask1]
-        indices = indices[0:int(portion)]
-        indices_r.append(indices)
+    if combination[0] != None:
+        class_mask1 = target[random_first_ordering] == combination[0]
+        indices_r = np.array(random_first_ordering)[class_mask1]
+        indices_r = indices_r[0:int(portion)]
 
-    removal_list = np.concatenate(indices_r)
+    # first
+    if combination[1] != None:
+        class_mask2 = target[ordering_smallst] == combination[1]
+        indices_s = np.array(ordering_smallst)[class_mask2]
+        indices_s = indices_s[0:int(portion)]
+
+    # last
+    if combination[2] != None:
+        class_mask3 = target[ordering_largest] == combination[2]
+        indices_l = np.array(ordering_largest)[class_mask3]
+        indices_l = indices_l[0:int(portion)]
+
+    removal_list = np.concatenate((indices_r, indices_s, indices_l))
 
     index_list = np.array(list(range(50000)))
 
@@ -92,12 +98,12 @@ if __name__ == "__main__":
     parser.add_argument("--n_seeds", type=int, default=1, help="Value for lerining_rate (optional)")
     parser.add_argument("--n_rem", type=int, default=2, help="Value for lerining_rate (optional)")
     parser.add_argument("--name", type=str, default=None, help="Value for lerining_rate (optional)")
-    parser.add_argument("--name_ext", type=str, default="summarization")
+    parser.add_argument("--name_ext", type=str, default="fairness_")
     parser.add_argument("--epochs", type=int, default=1000, help="Value for lerining_rate (optional)")
     parser.add_argument("--dataset", type=str, default="cifar10compressed", help="Value for lerining_rate (optional)")
     parser.add_argument("--subset", type=int, default=50000, help="Value for lerining_rate (optional)")
     parser.add_argument("--lr", type=float, default=2, help="Value for lerining_rate (optional)")
-    parser.add_argument("--portions", type=int, default=100)
+    parser.add_argument("--portions", type=int, default=20)
     args = parser.parse_args()
 
 
@@ -114,7 +120,7 @@ if __name__ == "__main__":
     random_first_ordering = get_ordering(None, "random")
    
 
-    path_name = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_summarization/"
+    path_name = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_jax_fairness_computation_30Per_less_differentiated_setting"
     if args.name == None:
         file_name = "kl_jax_epochs_" + str(args.epochs) + "_dataset_" + str(args.dataset) + "_subset_" + str(args.subset) + "_" + str(args.name_ext)
     else:
@@ -160,17 +166,13 @@ if __name__ == "__main__":
     weights = 0.00001 * jax.random.normal(key, shape=(512,10))
     biases = jnp.zeros([10])
     model = MultinomialLogisticRegressor(weights, biases, momentum=nesterov_momentum)
-    result_all = []
-    for tp in ["low", "high", "rand"]:
-        idx_train = {}
-        train_full_ac = {}
-        train_subset_acc = {}
-        test_full_acc = {}
+
+    for combination in tqdm(combinations):
         for i in tqdm(range(1, args.portions)):
             model.reset()
-            portion = 5000 * i/(args.portions)
-            subset_idx = reduce_classes(tp, y_train_init, ordering_smallst, ordering_largest, random_first_ordering, portion)
-            print(sum(subset_idx))
+            portion = 1500 * i/(args.portions)
+            subset_idx = reduce_classes(combination, y_train_init, ordering_smallst, ordering_largest, random_first_ordering, portion)
+            print(len(subset_idx))
             X_train = jax.device_put(X_train_init[subset_idx])
             y_train = jax.device_put(y_train_init[subset_idx])
             start_time = time.time()
@@ -186,22 +188,25 @@ if __name__ == "__main__":
             train_full_ac[str(portion)] = compute_cwa(prediction_train_init, y_train_init)
             train_subset_acc[str(portion)] = compute_cwa(prediction_train, y_train)
             test_full_acc[str(portion)] = compute_cwa(prediction_test, y_test)
+
+
        
-        result = {
+        result = {"train_acc_subset": acc_tr,
+                "test_acc": acc_tes,
                 "train_full_acc": train_full_ac,
                 "train_subset_acc": train_subset_acc,
                 "test_full_acc": test_full_acc,
                 "idx_train_subset": idx_train,
-                "combination": tp
+                "combination": combination
                 }
-        result_all.append(result)
+        
 
-    if not os.path.exists(path_name):
-        os.makedirs(path_name)
-    file_path = os.path.join(path_name, file_name + ".pkl")
-    with open(file_path, 'wb') as file:
-        pickle.dump(result_all, file)
-    print(f'Saving at {file_path}')
+        if not os.path.exists(path_name):
+            os.makedirs(path_name)
+        file_path = os.path.join(path_name, file_name + str(combination[0]) + "_" + str(combination[1]) + "_" + str(combination[2]) + ".pkl")
+        with open(file_path, 'wb') as file:
+            pickle.dump(result, file)
+        print(f'Saving at {file_path}')
 
         # results_performance_train = defaultdict(dict)
         # results_performance_test = defaultdict(dict)

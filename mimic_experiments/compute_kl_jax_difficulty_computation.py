@@ -13,6 +13,11 @@ import pickle
 import argparse
 from copy import deepcopy
 from collections import defaultdict
+from models.jax_model import MultinomialLogisticRegressor
+import random
+from tqdm import tqdm
+from itertools import chain
+
 
 
 if torch.cuda.is_available():
@@ -20,75 +25,44 @@ if torch.cuda.is_available():
 else:
     DEVICE = torch.device("cpu")
 
-class MultinomialLogisticRegressor():
-    def __init__(self, w, b, momentum=0.9):  # Add momentum as an optional parameter
-        self.w_init = w
-        self.b_init = b
-        self.w = w
-        self.b = b
-        self.momentum = momentum  # Add momentum attribute
-        self.w_velocity = jax.tree_map(jnp.zeros_like, w)  # Initialize velocity for weights
-        self.b_velocity = jax.tree_map(jnp.zeros_like, b)  # Initialize velocity for biases
-        self.grad_fn = jax.grad(self.loss_fn, argnums=(0, 1))
-
-    def reset(self):
-        self.w = self.w_init
-        self.b = self.b_init
-        self.w_velocity = jax.tree_map(jnp.zeros_like, self.w_init)  # Reset velocity for weights
-        self.b_velocity = jax.tree_map(jnp.zeros_like, self.b_init)  # Reset velocity for biases
-
-    def predict(self, x):
-        return jax.nn.softmax(jax.lax.batch_matmul(x, self.w) + self.b)
-
-    def _predict(self, weights, biases, x):
-        return jax.nn.softmax(jax.lax.batch_matmul(x, weights) + biases)
-
-    def cross_entropy(self, logprobs, targets):
-        nll = -jnp.take_along_axis(logprobs, targets[:, None], axis=1)
-        ce = jnp.mean(nll)
-        return ce
-    
-    @partial(jax.jit, static_argnums=(0,))
-    def loss_fn(self, weights, biases, xs, ys):
-        return self.cross_entropy(self._predict(weights, biases, xs), ys) + 0.08 * (
-                jnp.mean(weights ** 2) + jnp.mean(biases ** 2))
-
-    def prepare_optim(self, xs, ys, a):
-        self.w = jax.device_put(self.w)
-        self.b = jax.device_put(self.b)
-        self.w_velocity = jax.device_put(self.w_velocity)
-        self.b_velocity = jax.device_put(self.b_velocity)
-        self.momentum = jax.device_put(self.momentum)
-        self.xs = jax.device_put(xs)
-        self.ys = jax.device_put(ys)
-        self.a = jax.device_put(a)
-
-    def step(self):
-        # Compute gradients
-        grads = self.grad_fn(self.w - self.momentum, self.b - self.momentum, self.xs, self.ys)
-        self.w_velocity = self.momentum * self.w_velocity + self.a * grads[0]
-        self.b_velocity = self.momentum * self.b_velocity + self.a * grads[1]
-        self.w = jax.device_put(self.w - self.w_velocity)
-        self.b = jax.device_put(self.b - self.b_velocity)
-
-    def train_model(self, epochs, xs, ys, alpha):
-        self.prepare_optim(X_train, y_train, alpha)
-        epochs_arr = jnp.arange(0, epochs, 1)
-        for i in epochs_arr:
-            self.step()
-            # if i%200 == 0:
-        prediction = self.predict(xs)
-        pred_class = jnp.argmax(prediction, axis=1)
-        correct1 = jnp.sum(pred_class == ys)
-
-        prediction = self.predict(X_test)
-        pred_class = jnp.argmax(prediction, axis=1)
-        correct2 = jnp.sum(pred_class == y_test)
-        return self.w, self.b, correct1/50000, correct2/10000
 
 
-def get_ordering(path, type):
-    # TODO
+def get_ordering(path, kind, ytr=None):
+    if kind == "random":
+        return_list = random.sample(range(50000), 50000)
+        return return_list
+    if kind == "largest_onion" or kind == "smallest_onion":
+        with open(path, 'rb') as file:
+            final_dict = pickle.load(file)
+        idx = final_dict["remove_idx"]
+        idx_new = []
+        for tup in idx:
+            idx_new += list(tup)
+        return idx_new
+    with open(path, 'rb') as file:
+        final_dict = pickle.load(file)
+    kl_data = np.array(final_dict["kl"])
+    kl_data = np.mean(kl_data, axis=0)
+    idx = final_dict["idx"][0]
+    sorted_data = sorted(zip(kl_data, idx), key=lambda x: x[0])
+    kl_data, idx = zip(*sorted_data)
+    idx = list(idx)
+    if kind == "smallest":
+        return idx
+    elif kind == "largest":
+        idx.reverse()
+        return idx
+    elif kind== "largest_balanced":
+        idx.reverse()
+        classes_ordered = []
+        for i in np.unique(ytr):
+            class_i_idx = [index for index, val in enumerate(ytr) if val == i]
+            class_i_order = [index for index in idx if index in class_i_idx]
+            classes_ordered.append(class_i_order)
+        idx_new = list(chain(*zip(*classes_ordered)))
+        return idx_new
+    else:
+        raise Exception("Not implemented")
     return
 
 if __name__ == "__main__":
@@ -101,37 +75,24 @@ if __name__ == "__main__":
     parser.add_argument("--n_seeds", type=int, default=1, help="Value for lerining_rate (optional)")
     parser.add_argument("--n_rem", type=int, default=2, help="Value for lerining_rate (optional)")
     parser.add_argument("--name", type=str, default=None, help="Value for lerining_rate (optional)")
-    parser.add_argument("--name_ext", type=str, default="")
+    parser.add_argument("--name_ext", type=str, default="4orders")
     parser.add_argument("--epochs", type=int, default=1000, help="Value for lerining_rate (optional)")
-    parser.add_argument("--dataset", type=str, default="cifar10", help="Value for lerining_rate (optional)")
+    parser.add_argument("--dataset", type=str, default="cifar10compressed", help="Value for lerining_rate (optional)")
     parser.add_argument("--subset", type=int, default=50000, help="Value for lerining_rate (optional)")
-    parser.add_argument("--lr", type=float, default=3, help="Value for lerining_rate (optional)")
-    parser.add_argument("--portions", type=int, default=10)
+    parser.add_argument("--lr", type=float, default=0.02, help="Value for lerining_rate (optional)")
+    parser.add_argument("--portions", type=int, default=20)
     args = parser.parse_args()
 
 
     # TODO
     smallest_path_onion = ""
-    largest_path_onion = ""
-    smallest_path = ""
-    largest_path = ""
-
-    ordering_smallst_onion = get_ordering(smallest_path_onion, "smallest_onion")
-    ordering_largest_onion = get_ordering(largest_path_onion, "largest_onion")
-    ordering_smallst = get_ordering(smallest_path, "smallest")
-    ordering_largest = get_ordering(largest_path, "largest")
-    random_first_ordering = get_ordering(None, "random")
-    orderings = {
-        "ordering_smallst_onion": ordering_smallst_onion,
-        "ordering_largest_onion": ordering_largest_onion,
-        "ordering_smallst": ordering_smallst,
-        "ordering_largest": ordering_largest,
-        "random_first_ordering": random_first_ordering
-    }
+    largest_path_onion = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_jax_diff_upd2/kl_jax_epochs_200_n_divs_10_dataset_cifar10compressed_subset_50000_smallest.pkl"
+    smallest_path = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_jax_upd2/kl_jax_epochs_1000_remove_50000_dataset_cifar10compressed_subset_50000_corrupt_0.0_.pkl"
+    largest_path = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_jax_upd2/kl_jax_epochs_1000_remove_50000_dataset_cifar10compressed_subset_50000_corrupt_0.0_.pkl"
 
     path_name = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_jax_difficulty_computation"
     if args.name == None:
-        file_name = "kl_jax_epochs_" + str(args.epochs) + "_remove_" + str(args.n_rem) + "_dataset_" + str(args.dataset) + "_subset_" + str(args.subset) + "_" + str(args.name_ext)
+        file_name = "kl_jax_epochs_" + str(args.epochs) + "_remove_" + str(args.n_rem) + "_dataset_" + str(args.dataset) + "_portions_" + str(args.portions) + "_lr_" + str(args.lr) + "_" + str(args.name_ext)
     else:
         file_name = args.name
 
@@ -151,6 +112,18 @@ if __name__ == "__main__":
     X_test = jax.device_put(data_set_test.data.numpy())
     y_test = jax.device_put(data_set_test.labels.numpy())
 
+    # ordering_smallst_onion = get_ordering(smallest_path_onion, "smallest_onion")
+    ordering_largest_onion = get_ordering(largest_path_onion, "largest_onion")
+    # ordering_smallst = get_ordering(smallest_path, "smallest")
+    ordering_largest = get_ordering(largest_path, "largest")
+    ordering_largest_balanced = get_ordering(largest_path, "largest_balanced", ytr=y_train_init)
+    random_first_ordering = get_ordering(None, "random")
+    orderings = {
+        "ordering_largest": ordering_largest,
+        "ordering_largest_balanced": ordering_largest_balanced,
+        "ordering_largest_onion": ordering_largest_onion,
+        "random_first_ordering": random_first_ordering
+    }
 
     epochs = args.epochs
     alpha = args.lr
@@ -168,10 +141,10 @@ if __name__ == "__main__":
     idx_train = defaultdict(dict)
     pred_test = defaultdict(dict)
 
-    for ordering_name, order in orderings:
-        for i in range(1, args.portions):
-            portion = 50000 * i/(args.portions + 1)
-            subset_idx = order[0:portion]
+    for ordering_name, order in orderings.items():
+        for i in tqdm(range(0, args.portions)):
+            portion = 50000 * 1/(args.portions)
+            subset_idx = order[int(i*portion):int((i+1)*portion)]
 
             X_train = jax.device_put(X_train_init[subset_idx])
             y_train = jax.device_put(y_train_init[subset_idx])
@@ -181,35 +154,16 @@ if __name__ == "__main__":
             biases = jnp.zeros([10])
             model = MultinomialLogisticRegressor(weights, biases, momentum=nesterov_momentum)
 
-            weights_full, bias_full, acc_tr, acc_tes = model.train_model(epochs, X_train, y_train, alpha)
-            print(f"{acc_tr} and {acc_tes}")
-            print(f"{time.time() - start_time}")
-
-            prediction_train_init = model.predict(X_train_init)
-            prediction_train = model.predict(X_train)
-            prediction_test = model.predict(X_test)
-
-            results_performance_train[ordering_name][str(portion)] = acc_tr
-            results_performance_test[ordering_name][str(portion)] = acc_tes
-            pred_train_init[ordering_name][str(portion)] = prediction_train_init
-            pred_train[ordering_name][str(portion)] = prediction_train
-            lab_train_init[ordering_name][str(portion)] = y_train_init
-            lab_train[ordering_name][str(portion)] = y_train
-            idx_train[ordering_name][str(portion)] = subset_idx
-            pred_test[ordering_name][str(portion)] = prediction_test
+            weights_full, bias_full, acc_tr, acc_tes = model.train_model(epochs, X_train, y_train, X_test, y_test, alpha, return_acc_ac_train=True, delta=0)
+            # print(f"{time.time() - start_time}")
 
 
-
+            results_performance_train[ordering_name][i] = acc_tr
+            results_performance_test[ordering_name][i] = acc_tes
 
        
     result = {"train_acc_subset": results_performance_train,
-              "test_acc": results_performance_test,
-              "train_pred": pred_train_init,
-              "train_pred_subset": pred_train,
-              "train_lab": lab_train_init,
-              "train_lab_subset": lab_train,
-              "idx_train_subset": idx_train,
-              "test_pred": pred_test
+              "test_acc": results_performance_test
               }
     
 

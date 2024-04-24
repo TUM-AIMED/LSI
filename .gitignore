@@ -19,6 +19,8 @@ lib64/
 parts/
 sdist/
 var/
+e/
+data/
 wheels/
 share/python-wheels/
 mimic_experiments/cupy_cache_dir/

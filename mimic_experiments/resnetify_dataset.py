@@ -19,7 +19,7 @@ if __name__ == "__main__":
     """ 
     parser = argparse.ArgumentParser(description="Process optional float inputs.")
     parser.add_argument("--model", type=str, default="resnet18_headless", help="Value for lerining_rate (optional)")
-    parser.add_argument("--dataset", type=str, default="Imagenet", help="Value for lerining_rate (optional)")
+    parser.add_argument("--dataset", type=str, default="Prima", help="Value for lerining_rate (optional)")
 
 
     args = parser.parse_args()
@@ -57,38 +57,43 @@ if __name__ == "__main__":
         pin_memory=False,
     )
 
-    DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    # DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     model_class = get_model(params["model"]["model"])
     if params["model"]["model"] == "mlp" or params["model"]["model"] == "small_mlp" or params["model"]["model"] == "logreg":
         train_X_example = 10
-        model = model_class(len(torch.flatten(train_X_example))).to(DEVICE)
+        model = model_class(len(torch.flatten(train_X_example))).cuda()
     else:
-        model = model_class(pretrained="Places365")
-        model = model.to(DEVICE)
+        model = model_class(pretrained="Imagenet")
+        model = model.cuda()
 
     def compress_dataset(model, dataset, path):
-        if not os.path.exists(params["save_path"] + path + "/data/"):
-            os.makedirs(params["save_path"] + path + "/data/")
-        if not os.path.exists(params["save_path"] + path + "/targets/"):
-            os.makedirs(params["save_path"] + path + "/targets/")
+        if not os.path.exists(params["save_path"]):
+            os.makedirs(params["save_path"])
 
         model.eval()
         targets = []
         idxs = []
-        for _, (data, target, idx, _) in tqdm(enumerate(dataset)):
-            torch.cuda.empty_cache()
-            data, target = data.to(DEVICE), target.to(DEVICE)
-            res = model(data)
-            targets.append(target.cpu().item())
-            idxs.append(idx.item())
-            torch.save(torch.squeeze(res).cpu(), params["save_path"] + path + "/data/" + str(idx.item()) + ".pt")
-        torch.save([targets, idxs], params["save_path"] + path + "/targets/" + "target.pt")
+        reses = []
+        with torch.no_grad():
+            for _, (data, target, idx, _) in tqdm(enumerate(dataset)):
+                torch.cuda.empty_cache()
+                data, target = data.cuda(), target.cuda()
+                res = model(data)
+                targets.append(target.cpu().item())
+                idxs.append(idx.item())
+                reses.append(torch.squeeze(res).cpu())
+                del data
+                del target
+        torch.save(reses, params["save_path"] + "/" + path + "_data.pt")
+        torch.save(targets, params["save_path"] + "/" + path + "_target.pt")
 
-        print(f'saving under {params["save_path"] + path + "/"}')
+        print(f'saving under {params["save_path"] + "/"}')
         return 
     
-    # compress_dataset(model, test_loader, "/test_data2")
-    compress_dataset(model, train_loader, "/train_data2")
+    # compress_dataset(model, test_loader, "train")
+    compress_dataset(model, train_loader, "train")
+    compress_dataset(model, test_loader, "test")
+
     
     

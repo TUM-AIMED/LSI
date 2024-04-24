@@ -11,6 +11,7 @@ from functools import partial
 import os
 import pickle
 import argparse
+from models.jax_model import MultinomialLogisticRegressor
 
 
 
@@ -32,73 +33,6 @@ class TinyModel(torch.nn.Module):
         x = self.features(x)
         return x
 
-class MultinomialLogisticRegressor():
-    def __init__(self, w, b, momentum=0.9):  # Add momentum as an optional parameter
-        self.w_init = w
-        self.b_init = b
-        self.w = w
-        self.b = b
-        self.momentum = momentum  # Add momentum attribute
-        self.w_velocity = jax.tree_map(jnp.zeros_like, w)  # Initialize velocity for weights
-        self.b_velocity = jax.tree_map(jnp.zeros_like, b)  # Initialize velocity for biases
-        self.grad_fn = jax.grad(self.loss_fn, argnums=(0, 1))
-
-    def reset(self):
-        self.w = self.w_init
-        self.b = self.b_init
-        self.w_velocity = jax.tree_map(jnp.zeros_like, self.w_init)  # Reset velocity for weights
-        self.b_velocity = jax.tree_map(jnp.zeros_like, self.b_init)  # Reset velocity for biases
-
-    def predict(self, x):
-        return jax.nn.softmax(jax.lax.batch_matmul(x, self.w) + self.b)
-
-    def _predict(self, weights, biases, x):
-        return jax.nn.softmax(jax.lax.batch_matmul(x, weights) + biases)
-
-    def cross_entropy(self, logprobs, targets):
-        nll = -jnp.take_along_axis(logprobs, targets[:, None], axis=1)
-        ce = jnp.mean(nll)
-        return ce
-    
-    @partial(jax.jit, static_argnums=(0,))
-    def loss_fn(self, weights, biases, xs, ys):
-        return self.cross_entropy(self._predict(weights, biases, xs), ys) + 0.08 * (
-                jnp.mean(weights ** 2) + jnp.mean(biases ** 2))
-
-    def prepare_optim(self, xs, ys, a):
-        self.w = jax.device_put(self.w)
-        self.b = jax.device_put(self.b)
-        self.w_velocity = jax.device_put(self.w_velocity)
-        self.b_velocity = jax.device_put(self.b_velocity)
-        self.momentum = jax.device_put(self.momentum)
-        self.xs = jax.device_put(xs)
-        self.ys = jax.device_put(ys)
-        self.a = jax.device_put(a)
-
-    def step(self):
-        # Compute gradients
-        grads = self.grad_fn(self.w - self.momentum, self.b - self.momentum, self.xs, self.ys)
-        self.w_velocity = self.momentum * self.w_velocity + self.a * grads[0]
-        self.b_velocity = self.momentum * self.b_velocity + self.a * grads[1]
-        self.w = jax.device_put(self.w - self.w_velocity)
-        self.b = jax.device_put(self.b - self.b_velocity)
-
-    def train_model(self, epochs, xs, ys, alpha):
-        self.prepare_optim(X_train, y_train, alpha)
-        epochs_arr = jnp.arange(0, epochs, 1)
-        predictions = []
-        for i in epochs_arr:
-            self.step()
-            predictions.append(self.predict(xs))
-            # if i%200 == 0:
-        prediction = self.predict(xs)
-        pred_class = jnp.argmax(prediction, axis=1)
-        correct1 = jnp.sum(pred_class == ys)
-
-        prediction = self.predict(X_test)
-        pred_class = jnp.argmax(prediction, axis=1)
-        correct2 = jnp.sum(pred_class == y_test)
-        return self.w, self.b, correct1/50000, correct2/10000, predictions
 
 if __name__ == "__main__":
     """
@@ -116,7 +50,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
 
-    path_name = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_jax_normal_train"
+    path_name = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_jax_normal_train_upd"
     if args.name == None:
         file_name = "kl_jax_epochs_" + str(args.epochs) + "_dataset_" + str(args.dataset) + "_subset_" + str(args.subset) + "_" + str(args.name_ext)
     else:

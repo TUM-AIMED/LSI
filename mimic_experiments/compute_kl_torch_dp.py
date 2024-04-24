@@ -12,7 +12,12 @@ import os
 import pickle
 import argparse
 from models.jax_model import MultinomialLogisticRegressor
-
+from copy import deepcopy
+import matplotlib.pyplot as plt
+from opacus.validators import ModuleValidator
+from opacus import PrivacyEngine
+from torch.utils.data import DataLoader, TensorDataset
+from tqdm import tqdm
 
 if torch.cuda.is_available():
     DEVICE = torch.device("cuda")
@@ -23,7 +28,7 @@ else:
 class TinyModel(torch.nn.Module):
     def __init__(self):
         super(TinyModel, self).__init__()
-        self.linear1 = torch.nn.Linear(512, 10)
+        self.linear1 = torch.nn.Linear(512, 3)
         self.features = torch.nn.Sequential(self.linear1)
 
 
@@ -32,15 +37,16 @@ class TinyModel(torch.nn.Module):
         x = self.features(x)
         return x
 
-def get_mean_and_prec(data, labels, weights, bias):
+def get_mean_and_prec(data, labels, tinymodel):
     labels = np.asarray(labels)
     labels = torch.from_numpy(labels).to(torch.long)
     data = np.asarray(data)
     data = torch.from_numpy(data).to(torch.float32)
-    bias = np.asarray(bias)
-    bias = torch.from_numpy(bias)
-    weights = np.asarray(weights)
-    weights = torch.from_numpy(weights).T.contiguous()
+
+    model_intern = TinyModel()
+    with torch.no_grad():
+        model_intern.linear1.weight = torch.nn.Parameter(tinymodel.linear1.weight.data)
+        model_intern.linear1.bias = torch.nn.Parameter(tinymodel.linear1.bias.data)
     train_loader = torch.utils.data.DataLoader(
         TensorDataset(data, labels),
         batch_size=128,
@@ -49,14 +55,8 @@ def get_mean_and_prec(data, labels, weights, bias):
         pin_memory=False,
     )
 
-    tinymodel = TinyModel()
 
-    with torch.no_grad():
-        tinymodel.linear1.weight = torch.nn.Parameter(weights)
-        tinymodel.linear1.bias = torch.nn.Parameter(bias)
-
-    print(DEVICE)
-    la = Laplace(tinymodel.features.to(DEVICE), 'classification',
+    la = Laplace(model_intern.features.to(DEVICE), 'classification',
                 subset_of_weights='all',
                 hessian_structure='diag')
     la.fit(train_loader)
@@ -94,18 +94,20 @@ if __name__ == "__main__":
     - edit: json_file_path for config file
     """ 
     parser = argparse.ArgumentParser(description="Process optional float inputs.")
-    parser.add_argument("--n_seeds", type=int, default=1, help="Value for lerining_rate (optional)")
-    parser.add_argument("--n_rem", type=int, default=1000, help="Value for lerining_rate (optional)")
+    parser.add_argument("--n_seeds", type=int, default=5, help="Value for lerining_rate (optional)")
+    parser.add_argument("--n_rem", type=int, default=4646, help="Value for lerining_rate (optional)")
     parser.add_argument("--batch_num", type=int, default=1, help="Value for lerining_rate (optional)")
     parser.add_argument("--name", type=str, default=None, help="Value for lerining_rate (optional)")
     parser.add_argument("--name_ext", type=str, default="")
-    parser.add_argument("--epochs", type=int, default=1000, help="Value for lerining_rate (optional)")
+    parser.add_argument("--epochs", type=int, default=700, help="Value for lerining_rate (optional)")
     parser.add_argument("--dataset", type=str, default="Primacompressed", help="Value for lerining_rate (optional)")
-    parser.add_argument("--subset", type=int, default=50000, help="Value for lerining_rate (optional)")
+    parser.add_argument("--subset", type=int, default=4646, help="Value for lerining_rate (optional)")
     parser.add_argument("--lr", type=float, default= 0.01, help="Value for lerining_rate (optional)")
+    parser.add_argument("--clip", type=float, default=0.1, help="Value for lerining_rate (optional)")
+    parser.add_argument("--noise", type=float, default=0, help="Value for lerining_rate (optional)")
     parser.add_argument("--corrupt", type=float, default=0.0)
     args = parser.parse_args()
-    print("0")
+
     if args.dataset == "cifar100compressed":
         n_classes = 100
     if args.dataset == "cifar10compressed":
@@ -115,10 +117,10 @@ if __name__ == "__main__":
         args.subset = 4646
         args.n_rem = 4646
 
-    print("-1")
+
     path_name = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_jax_upd2"
     if args.name == None:
-        file_name = "kl_jax_epochs_" + str(args.epochs) + "_remove_" + str(args.n_rem) + "_dataset_" + str(args.dataset) + "_subset_" + str(args.subset) + "_corrupt_" + str(args.corrupt) + "_" + str(args.name_ext)
+        file_name = "kl_torch_epochs_" + str(args.epochs) + "_remove_" + str(args.n_rem) + "_dataset_" + str(args.dataset) + "_subset_" + str(args.subset) + "_corrupt_" + str(args.corrupt) + "_clip_" + str(args.clip) + "_noise_" + str(args.noise) + "_" + str(args.name_ext)
     else:
         file_name = args.name
 
@@ -126,83 +128,115 @@ if __name__ == "__main__":
 
     data_set = data_set_class(data_path, train=True)
     data_set_test = data_set_class(data_path, train=False) 
-    print("-2")
+    train_loader = DataLoader(data_set, batch_size=128, shuffle=False)
+    # len(data_set)
     keep_indices = [*range(args.subset)]
     data_set.reduce_to_active(keep_indices)
 
-    X_train = jax.device_put(data_set.data.numpy())
-    y_train = jax.device_put(data_set.labels.numpy())
-    X_test = jax.device_put(data_set_test.data.numpy())
-    y_test = jax.device_put(data_set_test.labels.numpy())
-    
-    corrupted = []
-    y_train, corrupted = change_labels(y_train, percentage=args.corrupt)
+    X_train = data_set.data.cuda()
+    y_train = data_set.labels.cuda()
+    X_test = data_set_test.data.cuda()
+    y_test = data_set_test.labels.cuda()
 
-    if args.dataset =="cifar10":
-        X_train = jnp.ravel(X_train, order="F")
 
 
     N_REMOVE = args.n_rem
     N_SEEDS = args.n_seeds
     epochs = args.epochs
-    alpha = args.lr
-    # nesterov_momentum = 0.99
-    # delta = 0.08
-    nesterov_momentum = 0.99
-    delta = 0.0
     i = 0
     kl = []
     idx = []
     pred = []
     square_diff = []
+    criterion = torch.nn.CrossEntropyLoss(reduction='mean')
     # selu_train_model = jax.jit(train_model)
-    print("1")
     for seed in range(N_SEEDS):
-        start_time = time.time()
-        key = jax.random.PRNGKey(seed)
-        weights = 0.000001 * jax.random.uniform(key, shape=(512,n_classes))
-        biases =  0.000001 * jax.random.uniform(key, shape=([n_classes]))
-        model = MultinomialLogisticRegressor(weights, biases, momentum=nesterov_momentum)
-        print("2")
-        weights_full, bias_full, acc_tr, acc_tes = model.train_model(epochs, X_train, y_train, X_test, y_test, alpha, delta=delta, batched=args.batch_num)
-        # print(f"{acc_tr} and {acc_tes}")
-        print("3")
-        mean1, prec1 = get_mean_and_prec(X_train.cpu(), y_train.cpu(), weights_full, bias_full)
+        generator = torch.Generator(device='cuda').manual_seed(seed)
+        privacy_engine = PrivacyEngine()
+        model = TinyModel()
+        model = ModuleValidator.fix(model)
+        backup_model = deepcopy(model)
+        model = model.cuda()
+        optimizer = torch.optim.SGD(
+            model.parameters(),
+            lr=0.004,
+            weight_decay=0.01, momentum=0.9, nesterov=True)
+        model, optimizer, train_loader_priv = privacy_engine.make_private(
+                    module=model,
+                    optimizer=optimizer,
+                    data_loader=train_loader,
+                    noise_multiplier=1.1,
+                    max_grad_norm=1.0,
+                    noise_generator = generator
+                )
+        for i in range(epochs):
+            optimizer.zero_grad()
+            output = model(X_train)
+            loss = criterion(output, y_train)
+            loss.backward()
+            optimizer.step()
+        mean1, prec1 = get_mean_and_prec(X_train.cpu(), y_train.cpu(), model)
         # print(f"{time.time() - start_time}")
         kl_seed = []
         idx_seed = []
         pred_seed = []
-        for i in range(N_REMOVE):
-            model.reset()
-            X_train_rm = jnp.delete(X_train, i, axis=0)
-            y_train_rm = jnp.delete(y_train, i, axis=0)
-            # X_train_rm = X_train
-            # y_train_rm = y_train
-            start_time2 = time.time()
-            weights_rm, bias_rm, acc_tr, acc_tes = model.train_model(epochs, X_train_rm, y_train_rm, X_test, y_test,  alpha, delta=delta, batched=args.batch_num, remove=i)
-            print(f"Train took {time.time() - start_time2}")
-            start_time2 = time.time()
-            mean2, prec2 = get_mean_and_prec(X_train, y_train, weights_rm, bias_rm)
-            print(f"KL computation took {time.time() - start_time2}")
+        for i in tqdm(range(N_REMOVE)):
+            privacy_engine = PrivacyEngine()
+            X_train_rem = torch.cat([X_train[0:i], X_train[i+1:]])
+            y_train_rem = torch.cat([y_train[0:i], y_train[i+1:]])
+            generator = torch.Generator(device='cuda').manual_seed(seed)
+            model = deepcopy(backup_model)
+            model = model.cuda()
+            optimizer = torch.optim.SGD(
+                model.parameters(),
+                lr=0.004,
+                weight_decay=0.01, momentum=0.9, nesterov=True)
+            model, optimizer, train_loader_priv = privacy_engine.make_private(
+                    module=model,
+                    optimizer=optimizer,
+                    data_loader=train_loader,
+                    noise_multiplier=1.1,
+                    max_grad_norm=1.0,
+                    noise_generator = generator
+                )
+            for i in range(epochs):
+                optimizer.zero_grad()
+                output = model(X_train_rem)
+                pred = torch.argmax(output, dim=1)
+                accuracy = torch.sum(pred == y_train_rem)/y_train_rem.shape[0]
+                # print(accuracy)
+                loss = criterion(output, y_train_rem)
+                # print(loss.item())
+                loss.backward()
+                optimizer.step()
+            mean2, prec2 = get_mean_and_prec(X_train_rem.cpu(), y_train_rem.cpu(), model)
             kl1, square_diff1 = _computeKL(mean1, mean2, prec1, prec2)
             # kl1, square_diff1 = _computeKL_from_full(mean1, mean2, prec1, prec2)
-            print(f"KL divergence {kl1}")
-            prediction = model.predict(X_train)
-            pred_class = jnp.argmax(prediction, axis=1)
-            correct = pred_class == y_train
+            # print(f"KL divergence {kl1}")
+            # prediction = model.predict(X_train)
+            # pred_class = jnp.argmax(prediction, axis=1)
+            # correct = pred_class == y_train
             kl_seed.append(kl1)
             square_diff.append(square_diff1)
             idx_seed.append(i)
-            pred_seed.append(correct)
+            # pred_seed.append(correct)
         kl.append(kl_seed)
         idx.append(idx_seed)
-        pred.append(correct)
+        # pred.append(correct)
         # print(f"loop took {time.time() - start_time}")
+        
+    plt.scatter(kl_seed, square_diff)
 
+    # Add labels and title
+    plt.xlabel('List 1')
+    plt.ylabel('List 2')
+    plt.title('Scatter Plot')
 
+    # Save the plot as test.png
+    plt.savefig('./test.png')
+    
     result = {"idx": idx,
               "kl": kl,
-              "corrupt":corrupted,
               "pred":pred, 
               "square_diff":square_diff}
     if not os.path.exists(path_name):

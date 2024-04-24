@@ -12,6 +12,7 @@ import os
 import pickle
 import argparse
 from tqdm import tqdm
+from models.jax_model import MultinomialLogisticRegressor
 
 
 if torch.cuda.is_available():
@@ -31,72 +32,6 @@ class TinyModel(torch.nn.Module):
         x = x.to(torch.float32)
         x = self.features(x)
         return x
-
-class MultinomialLogisticRegressor():
-    def __init__(self, w, b, momentum=0.9):  # Add momentum as an optional parameter
-        self.w_init = w
-        self.b_init = b
-        self.w = w
-        self.b = b
-        self.momentum = momentum  # Add momentum attribute
-        self.w_velocity = jax.tree_map(jnp.zeros_like, w)  # Initialize velocity for weights
-        self.b_velocity = jax.tree_map(jnp.zeros_like, b)  # Initialize velocity for biases
-        self.grad_fn = jax.grad(self.loss_fn, argnums=(0, 1))
-
-    def reset(self):
-        self.w = self.w_init
-        self.b = self.b_init
-        self.w_velocity = jax.tree_map(jnp.zeros_like, self.w_init)  # Reset velocity for weights
-        self.b_velocity = jax.tree_map(jnp.zeros_like, self.b_init)  # Reset velocity for biases
-
-    def predict(self, x):
-        return jax.nn.softmax(jax.lax.batch_matmul(x, self.w) + self.b)
-
-    def _predict(self, weights, biases, x):
-        return jax.nn.softmax(jax.lax.batch_matmul(x, weights) + biases)
-
-    def cross_entropy(self, logprobs, targets):
-        nll = -jnp.take_along_axis(logprobs, targets[:, None], axis=1)
-        ce = jnp.mean(nll)
-        return ce
-    
-    @partial(jax.jit, static_argnums=(0,))
-    def loss_fn(self, weights, biases, xs, ys):
-        return self.cross_entropy(self._predict(weights, biases, xs), ys) + 0.08 * (
-                jnp.mean(weights ** 2) + jnp.mean(biases ** 2))
-
-    def prepare_optim(self, xs, ys, a):
-        self.w = jax.device_put(self.w)
-        self.b = jax.device_put(self.b)
-        self.w_velocity = jax.device_put(self.w_velocity)
-        self.b_velocity = jax.device_put(self.b_velocity)
-        self.momentum = jax.device_put(self.momentum)
-        self.xs = jax.device_put(xs)
-        self.ys = jax.device_put(ys)
-        self.a = jax.device_put(a)
-
-    def step(self):
-        # Compute gradients
-        grads = self.grad_fn(self.w - self.momentum, self.b - self.momentum, self.xs, self.ys)
-        self.w_velocity = self.momentum * self.w_velocity + self.a * grads[0]
-        self.b_velocity = self.momentum * self.b_velocity + self.a * grads[1]
-        self.w = jax.device_put(self.w - self.w_velocity)
-        self.b = jax.device_put(self.b - self.b_velocity)
-
-    def train_model(self, epochs, xs, ys, alpha):
-        self.prepare_optim(X_train, y_train, alpha)
-        epochs_arr = jnp.arange(0, epochs, 1)
-        for i in epochs_arr:
-            self.step()
-            # if i%200 == 0:
-        prediction = self.predict(xs)
-        pred_class = jnp.argmax(prediction, axis=1)
-        correct1 = jnp.sum(pred_class == ys)
-
-        prediction = self.predict(X_test)
-        pred_class = jnp.argmax(prediction, axis=1)
-        correct2 = jnp.sum(pred_class == y_test)
-        return self.w, self.b, correct1/50000, correct2/10000
 
 def get_mean_and_prec(data, labels, weights, bias):
     labels = np.asarray(labels)
@@ -144,11 +79,11 @@ if __name__ == "__main__":
     parser.add_argument("--epochs", type=int, default=1000, help="Value for lerining_rate (optional)")
     parser.add_argument("--dataset", type=str, default="cifar10compressed", help="Value for lerining_rate (optional)")
     parser.add_argument("--subset", type=int, default=50, help="Value for lerining_rate (optional)")
-    parser.add_argument("--lr", type=float, default=3, help="Value for lerining_rate (optional)")
+    parser.add_argument("--lr", type=float, default=2, help="Value for lerining_rate (optional)")
     args = parser.parse_args()
 
 
-    path_name = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_jax_diff"
+    path_name = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_jax_diff_upd2"
     if args.name == None:
         file_name = "kl_jax_epochs_" + str(args.epochs) + "_n_divs_" + str(args.n_divs) + "_dataset_" + str(args.dataset) + "_subset_" + str(args.subset) + "_" + str(args.name_ext)
     else:
@@ -193,7 +128,7 @@ if __name__ == "__main__":
         X_train = X_train[jnp.array(keep_indices)]
         y_train = y_train[jnp.array(keep_indices)]
         start_time = time.time()
-        weights_full, bias_full, acc_tr, acc_tes = model.train_model(epochs, X_train, y_train, alpha)
+        weights_full, bias_full, acc_tr, acc_tes = model.train_model(epochs, X_train, y_train, X_test, y_test, alpha)
         print(f"{acc_tr} and {acc_tes}")
         mean1, prec1 = get_mean_and_prec(X_train, y_train, weights_full, bias_full)
         print(f"{time.time() - start_time}")
@@ -204,7 +139,7 @@ if __name__ == "__main__":
             X_train_rm = jnp.delete(X_train, i, axis=0)
             y_train_rm = jnp.delete(y_train, i, axis=0)
             start_time2 = time.time()
-            weights_rm, bias_rm, acc_tr, acc_tes = model.train_model(epochs, X_train_rm, y_train_rm, alpha)
+            weights_rm, bias_rm, acc_tr, acc_tes = model.train_model(epochs, X_train_rm, y_train_rm, X_test, y_test, alpha)
             print(f"Train took {time.time() - start_time2}")
             start_time2 = time.time()
             mean2, prec2 = get_mean_and_prec(X_train_rm, y_train_rm, weights_rm, bias_rm)
@@ -216,18 +151,22 @@ if __name__ == "__main__":
         sorted_lists = sorted(zip(kl_step, idx_step, active_indices), key=lambda x: x[0])
         kl_step, idx_step, active_indices = zip(*sorted_lists)
         kl.append(kl_step)
-        idx.append(idx_step)
-        # # remove the most difficult
-        # keep_indices = idx_step[0:-int(args.subset/N_DIVS)]
-        # remove_idx.append(active_indices[-int(args.subset/N_DIVS):])
-        # computed_idx.append(active_indices)
-        # active_indices = active_indices[0:-int(args.subset/N_DIVS)]
-        
+        idx.append(idx_step)    
+
         # remove easiest
-        keep_indices = idx_step[int(args.subset/N_DIVS):]
-        remove_idx.append(active_indices[0:int(args.subset/N_DIVS)])
-        computed_idx.append(active_indices)
-        active_indices = active_indices[int(args.subset/N_DIVS):]
+        if args.name_ext == "smallest":
+            keep_indices = idx_step[int(args.subset/N_DIVS):]
+            remove_idx.append(active_indices[0:int(args.subset/N_DIVS)])
+            computed_idx.append(active_indices)
+            active_indices = active_indices[int(args.subset/N_DIVS):]
+        elif args.name_ext == "largest":
+            # remove the most difficult
+            keep_indices = idx_step[0:-int(args.subset/N_DIVS)]
+            remove_idx.append(active_indices[-int(args.subset/N_DIVS):])
+            computed_idx.append(active_indices)
+            active_indices = active_indices[0:-int(args.subset/N_DIVS)]
+        else:    
+            raise Exception("provide name ext")
 
         print(f"loop took {time.time() - start_time}")
     result = {"idx": idx,

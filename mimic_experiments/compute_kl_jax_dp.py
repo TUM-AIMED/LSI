@@ -43,8 +43,7 @@ class MultinomialLogisticRegressor():
         self.momentum = momentum  # Add momentum attribute
         self.w_velocity = jax.tree_map(jnp.zeros_like, w)  # Initialize velocity for weights
         self.b_velocity = jax.tree_map(jnp.zeros_like, b)  # Initialize velocity for biases
-        self.grad_fn = jax.grad(self.loss_fn, argnums=(0, 1))
-        self.itercount = itertools.count()
+        self.grad_fn = jax.jit(jax.grad(self.loss_fn, argnums=(0, 1)))
 
         self.clip = clip
         self.noise = noise
@@ -97,56 +96,51 @@ class MultinomialLogisticRegressor():
         divisor = jnp.maximum(total_total_grad_norm / l2_norm_clip, 1.)
         normalized_nonempty_grads = [g / divisor for g in nonempty_grads]
         normalized_nonempty_grads_b = [g / divisor for g in nonempty_grads_b]
+        
         return jax.tree_util.tree_unflatten(tree_def, normalized_nonempty_grads), jax.tree_util.tree_unflatten(tree_def_b, normalized_nonempty_grads_b)
 
-
+    @partial(jax.jit, static_argnums=(0,))
     def private_grad(self, params, batch, rng, l2_norm_clip, noise_multiplier,
                     batch_size):
         """Return differentially private gradients for params, evaluated on batch."""
         clipped_grads = vmap(self.clipped_grad, (None, None, 0, 0))(params, l2_norm_clip, batch[0], batch[1])
         clipped_grads_flat, grads_treedef = jax.tree_util.tree_flatten(clipped_grads[0])
-        aggregated_clipped_grads = [g.sum(0) for g in clipped_grads_flat]
-        rngs = random.split(rng, len(aggregated_clipped_grads))
-        noised_aggregated_clipped_grads = [
-            g + l2_norm_clip * noise_multiplier * random.normal(r, g.shape)
-            for r, g in zip(rngs, aggregated_clipped_grads)]
-        normalized_noised_aggregated_clipped_grads = [
-            g / batch_size for g in noised_aggregated_clipped_grads]
+        aggregated_clipped_grads = [g.mean(0) for g in clipped_grads_flat]
+        noise_stdv = l2_norm_clip * noise_multiplier * 1/batch_size
+        # jax.debug.print("{y}", y=random.normal(rng, aggregated_clipped_grads[0].shape))
+        normalized_noised_aggregated_clipped_grads = [gx + noise_stdv * random.normal(rng, gx.shape) for gx in aggregated_clipped_grads]
         
-        clipped_grads_flat, grads_treedef_b = jax.tree_util.tree_flatten(clipped_grads[1])
-        aggregated_clipped_grads = [g.sum(0) for g in clipped_grads_flat]
-        rngs = random.split(rng, len(aggregated_clipped_grads))
-        noised_aggregated_clipped_grads = [
-            g + l2_norm_clip * noise_multiplier * random.normal(r, g.shape)
-            for r, g in zip(rngs, aggregated_clipped_grads)]
-        normalized_noised_aggregated_clipped_grads_b = [
-            g / batch_size for g in noised_aggregated_clipped_grads]
+        clipped_grads_flat_b, grads_treedef_b = jax.tree_util.tree_flatten(clipped_grads[1])
+        aggregated_clipped_grads_b = [g.mean(0) for g in clipped_grads_flat_b]
+        normalized_noised_aggregated_clipped_grads_b = [gx + noise_stdv * random.normal(rng, gx.shape) for gx in aggregated_clipped_grads_b]
+
+
         return jax.tree_util.tree_unflatten(grads_treedef, normalized_noised_aggregated_clipped_grads), jax.tree_util.tree_unflatten(grads_treedef_b, normalized_noised_aggregated_clipped_grads_b)
 
-    def step(self, seed):
+    def step(self, seed, iteration):
         # Compute gradients
         # grads = self.grad_fn(self.w - self.momentum, self.b - self.momentum, self.xs, self.ys)
-        grads = self.private_grad((self.w - self.momentum, self.b - self.momentum), (self.xs, self.ys), jax.random.fold_in(jax.random.PRNGKey(seed), next(self.itercount)), self.clip, self.noise, 50000)
+        batch_size = len(self.xs)
+        grads = self.private_grad((self.w - self.momentum * self.w_velocity, self.b - self.momentum  * self.b_velocity), (self.xs, self.ys), jax.random.fold_in(jax.random.PRNGKey(seed), iteration), self.clip, self.noise, batch_size)
         self.w_velocity = self.momentum * self.w_velocity + self.a * grads[0]
         self.b_velocity = self.momentum * self.b_velocity + self.a * grads[1]
         self.w = jax.device_put(self.w - self.w_velocity)
         self.b = jax.device_put(self.b - self.b_velocity)
 
-    def train_model(self, epochs, xs, ys, alpha, seed):
-        self.prepare_optim(X_train, y_train, alpha)
+    def train_model(self, epochs, xs, ys, xt, yt, alpha, seed):
+        self.prepare_optim(xs, ys, alpha)
         epochs_arr = jnp.arange(0, epochs, 1)
         for i in epochs_arr:
-            self.step(seed)
-            # if i%20 == 0:
+            self.step(seed, i)
+            if i%200 == 0:
+                prediction = self.predict(xs)
+                pred_class = jnp.argmax(prediction, axis=1)
+                correct1 = jnp.sum(pred_class == ys)
+                print(correct1/50000, flush=True)
 
-        prediction = self.predict(xs)
+        prediction = self.predict(xt)
         pred_class = jnp.argmax(prediction, axis=1)
-        correct1 = jnp.sum(pred_class == ys)
-        print(correct1/50000, flush=True)
-
-        prediction = self.predict(X_test)
-        pred_class = jnp.argmax(prediction, axis=1)
-        correct2 = jnp.sum(pred_class == y_test)
+        correct2 = jnp.sum(pred_class == yt)
         return self.w, self.b, correct1/50000, correct2/10000
 
 def get_mean_and_prec(data, labels, weights, bias):
@@ -190,21 +184,21 @@ if __name__ == "__main__":
     """ 
     parser = argparse.ArgumentParser(description="Process optional float inputs.")
     parser.add_argument("--n_seeds", type=int, default=1, help="Value for lerining_rate (optional)")
-    parser.add_argument("--n_rem", type=int, default=2, help="Value for lerining_rate (optional)")
+    parser.add_argument("--n_rem", type=int, default=1, help="Value for lerining_rate (optional)")
     parser.add_argument("--name", type=str, default=None, help="Value for lerining_rate (optional)")
     parser.add_argument("--name_ext", type=str, default="")
     parser.add_argument("--epochs", type=int, default=700, help="Value for lerining_rate (optional)")
-    parser.add_argument("--dataset", type=str, default="cifar10compressed", help="Value for lerining_rate (optional)")
-    parser.add_argument("--subset", type=int, default=50000, help="Value for lerining_rate (optional)")
-    parser.add_argument("--lr", type=float, default=3, help="Value for lerining_rate (optional)")
+    parser.add_argument("--dataset", type=str, default="cifar100compressed", help="Value for lerining_rate (optional)")
+    parser.add_argument("--subset", type=int, default=1000, help="Value for lerining_rate (optional)")
+    parser.add_argument("--lr", type=float, default=0.1, help="Value for lerining_rate (optional)")
     parser.add_argument("--clip", type=float, default=0.1, help="Value for lerining_rate (optional)")
-    parser.add_argument("--noise", type=float, default=108, help="Value for lerining_rate (optional)")
+    parser.add_argument("--noise", type=float, default=0, help="Value for lerining_rate (optional)")
     args = parser.parse_args()
 
 
-    path_name = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_jax_dp"
+    path_name = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_jax_dp_upd2_fixed_noise_schedule"
     if args.name == None:
-        file_name = "kl_jax_epochs_" + str(args.epochs) + "_remove_" + str(args.n_rem) + "_seeds_" + str(args.n_seeds) + "_dataset_" + str(args.dataset) + "_subset_" + str(args.subset) + "_noise_" + str(args.noise) + "_clip_" + str(args.clip) + "_" + str(args.name_ext)
+        file_name = "kl_jax_epochs_" + str(args.epochs) + "_lr_" + str(args.lr) + "_remove_" + str(args.n_rem) + "_seeds_" + str(args.n_seeds) + "_dataset_" + str(args.dataset) + "_subset_" + str(args.subset) + "_noise_" + str(args.noise) + "_clip_" + str(args.clip) + "_" + str(args.name_ext)
     else:
         file_name = args.name
 
@@ -238,10 +232,10 @@ if __name__ == "__main__":
     for seed in range(N_SEEDS):
         start_time = time.time()
         key = jax.random.PRNGKey(seed)
-        weights = 0.00001 * jax.random.normal(key, shape=(512,10))
-        biases = jnp.zeros([10])
+        weights = 0.00001 * jax.random.uniform(key, shape=(512,100))
+        biases = 0.00001 * jax.random.uniform(key, shape=([100]))
         model = MultinomialLogisticRegressor(weights, biases, momentum=nesterov_momentum, noise=args.noise, clip=args.clip)
-        weights_full, bias_full, acc_tr, acc_tes = model.train_model(epochs, X_train, y_train, alpha, seed)
+        weights_full, bias_full, acc_tr, acc_tes = model.train_model(epochs, X_train, y_train, X_test, y_test, alpha, seed)
         print(f"{acc_tr} and {acc_tes}")
         mean1, prec1 = get_mean_and_prec(X_train, y_train, weights_full, bias_full)
         print(f"{time.time() - start_time}")
@@ -252,7 +246,7 @@ if __name__ == "__main__":
             X_train_rm = jnp.delete(X_train, i, axis=0)
             y_train_rm = jnp.delete(y_train, i, axis=0)
             start_time2 = time.time()
-            weights_rm, bias_rm, acc_tr, acc_tes = model.train_model(epochs, X_train_rm, y_train_rm, alpha, seed)
+            weights_rm, bias_rm, acc_tr, acc_tes = model.train_model(epochs, X_train_rm, y_train_rm, X_test, y_test, alpha, seed)
             print(f"Train took {time.time() - start_time2}")
             start_time2 = time.time()
             mean2, prec2 = get_mean_and_prec(X_train_rm, y_train_rm, weights_rm, bias_rm)
@@ -269,6 +263,7 @@ if __name__ == "__main__":
     result = {"idx": idx,
               "kl": kl,
               "noise": args.noise,
+              "clip": args.clip,
               "epochs": args.epochs}
     if not os.path.exists(path_name):
         os.makedirs(path_name)

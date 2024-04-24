@@ -8,7 +8,6 @@ from torch.utils.data import Dataset
 from torchvision import transforms
 from sklearn import preprocessing
 import sklearn
-import cv2
 from mnist import MNIST
 import random
 
