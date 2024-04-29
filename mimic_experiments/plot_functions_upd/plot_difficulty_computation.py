@@ -75,12 +75,12 @@ def get_kl_data(final_path, agg_type="", rand=False):
     ["Balanced subset by KL-div value", "Random Subset"]
 
 def main():
-    path_str = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_jax_difficulty_computation/kl_jax_epochs_1000_remove_2_dataset_cifar10compressed_portions_20_lr_0.02_.pkl"
-    save_dir = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/plot_functions_upd/results/"
+    path_str = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_torch_difficulty_computation/kl_jax_epochs_1000_remove_2_dataset_cifar10compressed_portions_20_lr_0.02_4orders.pkl"
+    save_dir = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/plot_functions_upd/results_new/"
 
     train_data, test_data, labels = get_kl_data(path_str)
     # data = np.array([train_data, test_data])
-    data = np.array([test_data])
+    data = np.array([train_data])
 
     label_for_legend = ["highest KL", "mid KL", "lowest KL"]
 
@@ -139,8 +139,8 @@ def main():
     # Adjust layout
     plt.tight_layout()
     save_name = save_dir + "difficulty_computation20_rb_2sets_sns_test"
-    plt.savefig(save_name + ".pdf", format="pdf")
-    print(f"saving fig as {save_name}.pdf")
+    plt.savefig(save_name + ".png", format="png")
+    print(f"saving fig as {save_name}.png")
 
 
 

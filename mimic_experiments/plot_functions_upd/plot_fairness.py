@@ -80,8 +80,8 @@ def get_kl_data(final_path, agg_type="", rand=False):
 
 
 def main():
-    path_str = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_jax_fairness_computation_30Per_less_differentiated_setting/"
-    save_dir = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/plot_functions_upd/results/"
+    path_str = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_c10_kl_torch_fairness_computation_30Per_less_differentiated_setting/"
+    save_dir = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/plot_functions_upd/results_new/"
     filenames = os.listdir(path_str)
     random.shuffle(filenames)
     # filenames = filenames[0:10]
@@ -139,9 +139,11 @@ def main():
     plt.ylabel("Test Accuracy")
     sns.move_legend(p, "lower left", frameon=False, title=None)
     plt.tight_layout()
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
     save_name = save_dir + "fair_test_ci"
-    plt.savefig(save_name + ".pdf", format="pdf")
-    print(f"saving fig as {save_name}.pdf")
+    plt.savefig(save_name + ".png", format="png")
+    print(f"saving fig as {save_name}.png")
 
 
 
