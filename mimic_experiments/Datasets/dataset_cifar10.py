@@ -13,7 +13,8 @@ import random
 
 
 class CIFAR10(Dataset):
-    def __init__(self, data_path, train=True, classes=None, portions=None, transform=None, shuffle=False, resize = None):
+    def __init__(self, data_path, train=True, classes=None, portions=None, transform=None, shuffle=False, resize = None, ret4=True):
+        self.ret4 = ret4
         self.root_dir = data_path
         self.resize = False
         if resize != None:
@@ -42,7 +43,8 @@ class CIFAR10(Dataset):
         self.data = self.data.reshape((self.data.shape[0], 3, 32, 32))
         self.labels = np.array(labels)
         self.attributes = torch.empty((2,3), dtype=torch.int64)
-
+        if not ret4:
+            self.transform_data()
         self.transform = transform
         self.labels_str = np.unique(self.labels)
         self.active_indices = np.array(range(len(self.data)))
@@ -84,8 +86,10 @@ class CIFAR10(Dataset):
         le.fit(self.labels)
         self.labels = le.transform(self.labels)
         self.class_assignments2 = le
-        
+
         print(dict(zip(le.classes_, le.transform(le.classes_))))
+        self.labels = torch.tensor(self.labels)
+
 
 
     def apply_label_noise(self, noisy_idx):
@@ -200,4 +204,21 @@ class CIFAR10(Dataset):
         # tensor_image = tensor_image[0, :, :] 
         
         return tensor_image, label, idx, self.attributes
+
+
+    def transform_data(self):
+        data_new = []
+        for i, data in enumerate(self.data):
+            image = data
+            image = image.transpose(1, 2, 0)
+            transform = transforms.ToTensor()
+            transform2 = transforms.Normalize((0.4914, 0.4822, 0.4465), (0.247, 0.243, 0.261)) 
+            tensor_image = transform(image)
+            tensor_image = transform2(tensor_image)
+            data_new.append(tensor_image)
+        # data_new = [data for lab, data in zip(self.labels, data_new) if lab in [0, 1, 2, 3]]
+        # labels_new = [lab for lab in self.labels if lab in [0, 1, 2, 3]]
+        # self.data = torch.stack(data_new) 
+        # self.labels = torch.tensor(labels_new)
+        self.data = torch.stack(data_new)
 

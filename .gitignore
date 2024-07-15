@@ -171,6 +171,7 @@ cython_debug/
 C_Score/
 test.py
 mimic_experiments/results/
+mimic_experiments/Datasets/
 wandb/
 results/
 results_idp/

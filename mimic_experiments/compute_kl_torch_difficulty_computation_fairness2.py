@@ -68,23 +68,23 @@ def reduce_classes(combination, target, ordering_smallst, ordering_largest, rand
     if combination[0] != None:
         class_mask1 = target[random_first_ordering] == combination[0]
         indices_r = np.array(random_first_ordering)[class_mask1]
-        indices_r = indices_r[0:int(portion)]
+        indices_r = indices_r[0:int(portion * len(indices_r))]
 
     # first
     if combination[1] != None:
         class_mask2 = target[ordering_smallst] == combination[1]
         indices_s = np.array(ordering_smallst)[class_mask2]
-        indices_s = indices_s[0:int(portion)]
+        indices_s = indices_s[0:int(portion * len(indices_s))]
 
     # last
     if combination[2] != None:
         class_mask3 = target[ordering_largest] == combination[2]
         indices_l = np.array(ordering_largest)[class_mask3]
-        indices_l = indices_l[0:int(portion)]
+        indices_l = indices_l[0:int(portion * len(indices_l))]
 
     removal_list = np.concatenate((indices_r, indices_s, indices_l))
 
-    index_list = np.array(list(range(50000)))
+    index_list = np.array(list(range(len(target))))
 
     mask = np.isin(index_list, removal_list, invert=True)
     index_list = index_list[mask]
@@ -125,7 +125,7 @@ if __name__ == "__main__":
     parser.add_argument("--name", type=str, default=None, help="Value for lerining_rate (optional)")
     parser.add_argument("--name_ext", type=str, default="fairness_")
     parser.add_argument("--epochs", type=int, default=1000, help="Value for lerining_rate (optional)")
-    parser.add_argument("--dataset", type=str, default="cifar10compressed", help="Value for lerining_rate (optional)")
+    parser.add_argument("--dataset", type=str, default="Primacompressed", help="Value for lerining_rate (optional)")
     parser.add_argument("--subset", type=int, default=50000, help="Value for lerining_rate (optional)")
     parser.add_argument("--lr", type=float, default=0.004, help="Value for lerining_rate (optional)")
     parser.add_argument("--portions", type=int, default=50)
@@ -137,17 +137,19 @@ if __name__ == "__main__":
         n_classes = 10
     if args.dataset == "Primacompressed":
         n_classes = 3
+        args.subset = 4646
+
     # TODO
     # smallest_path_onion = ""
     # largest_path_onion = ""
     base_path = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_torch_upd2/"
-    paths = [
-        "kl_jax_torch_1000_remove_10000_dataset_cifar10compressed_subset_50000_range_0_10000_corrupt_0.0_torch.pkl",
-        "kl_jax_torch_1000_remove_10000_dataset_cifar10compressed_subset_50000_range_10000_20000_corrupt_0.0_torch.pkl",
-        "kl_jax_torch_1000_remove_10000_dataset_cifar10compressed_subset_50000_range_20000_30000_corrupt_0.0_torch.pkl",
-        "kl_jax_torch_1000_remove_10000_dataset_cifar10compressed_subset_50000_range_30000_40000_corrupt_0.0_torch.pkl",
-        "kl_jax_torch_1000_remove_10000_dataset_cifar10compressed_subset_50000_range_40000_49999_corrupt_0.0_torch.pkl"
-    ]
+    # paths = [
+    #     "kl_jax_torch_1000_remove_10000_dataset_cifar10compressed_subset_50000_range_0_10000_corrupt_0.0_torch.pkl",
+    #     "kl_jax_torch_1000_remove_10000_dataset_cifar10compressed_subset_50000_range_10000_20000_corrupt_0.0_torch.pkl",
+    #     "kl_jax_torch_1000_remove_10000_dataset_cifar10compressed_subset_50000_range_20000_30000_corrupt_0.0_torch.pkl",
+    #     "kl_jax_torch_1000_remove_10000_dataset_cifar10compressed_subset_50000_range_30000_40000_corrupt_0.0_torch.pkl",
+    #     "kl_jax_torch_1000_remove_10000_dataset_cifar10compressed_subset_50000_range_40000_49999_corrupt_0.0_torch.pkl"
+    # ]
 
     # paths = [
     #     "kl_jax_torch_1000_remove_10000_dataset_cifar100compressed_subset_50000_range_0_10000_corrupt_0.0_torch.pkl",
@@ -157,6 +159,9 @@ if __name__ == "__main__":
     #     "kl_jax_torch_1000_remove_10000_dataset_cifar100compressed_subset_50000_range_40000_49999_corrupt_0.0_torch.pkl"
     # ]
 
+    paths = [
+        "kl_jax_torch_1000_remove_4646_dataset_Primacompressed_subset_4646_range_0_4646_corrupt_0.0_torch.pkl"
+    ]
     paths = [base_path + path for path in paths]
 
     # ordering_smallst_onion = get_ordering(smallest_path_onion, "smallest_onion")
@@ -216,7 +221,7 @@ if __name__ == "__main__":
     for combination in tqdm(combinations):
         for i in tqdm(range(1, args.portions)):
             model = deepcopy(backup_model).to(DEVICE)
-            portion = 9500 * i/(args.portions)
+            portion = i/(args.portions)
             subset_idx = reduce_classes(combination, y_train_init.cpu(), ordering_smallst, ordering_largest, random_first_ordering, portion)
             print(len(subset_idx))
             X_train = X_train_init[subset_idx].to(DEVICE)

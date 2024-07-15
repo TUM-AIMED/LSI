@@ -11,14 +11,22 @@ from copy import deepcopy
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import gc
+from joblib import Parallel, delayed, cpu_count
+import time
 
-gc.collect()
-# DEVICE = torch.device("cpu")
+print(cpu_count())
 
-if torch.cuda.is_available():
-    DEVICE = torch.device("cuda")
-else:
-    DEVICE = torch.device("cpu")
+# gc.collect()
+DEVICE = torch.device("cpu")
+# DEVICE = torch.device("cuda")
+
+
+# if torch.cuda.is_available():
+#     DEVICE = torch.device("cuda")
+# else:
+#     DEVICE = torch.device("cpu")
+
+print(DEVICE)
 
 
 class TinyModel(torch.nn.Module):
@@ -34,22 +42,17 @@ class TinyModel(torch.nn.Module):
         return x
 
 def get_mean_and_prec(data, labels, tinymodel):
-    labels = np.asarray(labels)
-    labels = torch.from_numpy(labels).to(torch.long).to(DEVICE)
-    data = np.asarray(data)
-    data = torch.from_numpy(data).to(torch.float32).to(DEVICE)
-    
+
     train_loader = torch.utils.data.DataLoader(
         TensorDataset(data, labels),
-        batch_size=128,
+        batch_size=len(labels),
         shuffle=False,
         num_workers=0,
         pin_memory=False,
     )
 
-
     # print(DEVICE)
-    la = Laplace(tinymodel.features.to(DEVICE), 'classification',
+    la = Laplace(tinymodel.features, 'classification',
                 subset_of_weights='all',
                 hessian_structure='diag')
     la.fit(train_loader)
@@ -57,6 +60,51 @@ def get_mean_and_prec(data, labels, tinymodel):
     mean = la.mean.cpu().numpy()
     post_prec = la.posterior_precision.cpu().numpy()
     return mean, post_prec
+
+def split_into_chunks(lst, n):
+    # Calculate the size of each chunk
+    chunk_size = len(lst) // n
+    remainder = len(lst) % n
+
+    chunks = []
+    start = 0
+    for i in range(n):
+        # Adjust the chunk size if there's a remainder
+        if i < remainder:
+            end = start + chunk_size + 1
+        else:
+            end = start + chunk_size
+
+        chunks.append(lst[start:end])
+        start = end
+
+    return chunks
+
+def train_model(idxs, real_idxs, mean1, prec1, X_train, y_train):
+    kl_par = []
+    square_diff_par = []
+    ret_real_idxs_par = []
+    for idx, real_idx in zip(idxs, real_idxs):
+        X_train_rem = torch.cat([X_train[0:idx], X_train[idx+1:]])
+        y_train_rem = torch.cat([y_train[0:idx], y_train[idx+1:]])
+        model = deepcopy(backup_model)
+        model = model.to(DEVICE)
+        optimizer = torch.optim.SGD(
+            model.parameters(),
+            lr=0.004,
+            weight_decay=0.01, momentum=0.9, nesterov=True)
+        for _ in range(epochs):
+            optimizer.zero_grad()
+            output = model(X_train_rem)
+            loss = criterion(output, y_train_rem)
+            loss.backward()
+            optimizer.step()
+        mean2, prec2 = get_mean_and_prec(X_train_rem, y_train_rem, model)
+        kl1, square_diff1 = _computeKL(mean1, mean2, prec1, prec2)
+        kl_par.append(kl1)
+        square_diff_par.append(square_diff1)
+        ret_real_idxs_par.append(real_idx)
+    return kl_par, square_diff_par, ret_real_idxs_par
 
 
 if __name__ == "__main__":
@@ -69,11 +117,11 @@ if __name__ == "__main__":
     parser.add_argument("--n_seeds", type=int, default=1, help="Value for lerining_rate (optional)")
     parser.add_argument("--name", type=str, default=None, help="Value for lerining_rate (optional)")
     parser.add_argument("--name_ext", type=str, default="torch")
-    parser.add_argument("--epochs", type=int, default=1000, help="Value for lerining_rate (optional)")
-    parser.add_argument("--dataset", type=str, default="Primacompressed", help="Value for lerining_rate (optional)")
-    parser.add_argument("--subset", type=int, default=2500, help="Value for lerining_rate (optional)")
+    parser.add_argument("--epochs", type=int, default=700, help="Value for lerining_rate (optional)")
+    parser.add_argument("--dataset", type=str, default="cifar10compressed", help="Value for lerining_rate (optional)")
+    parser.add_argument("--subset", type=int, default=50000, help="Value for lerining_rate (optional)")
     parser.add_argument("--rem_small", type=bool, default=True, help="Value for lerining_rate (optional)")
-    parser.add_argument("--n_rem_per_step", type=int, default=1000, help="Value for lerining_rate (optional)")
+    parser.add_argument("--n_rem_per_step", type=int, default=5000, help="Value for lerining_rate (optional)")
 
     parser.add_argument("--corrupt", type=float, default=0.0)
     args = parser.parse_args()
@@ -92,7 +140,7 @@ if __name__ == "__main__":
     rem_small = args.rem_small
     n_rem_per_step = args.n_rem_per_step
 
-    path_name = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_jax_upd2"
+    path_name = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_torch_upd2_onioning"
     if rem_small:
         args.name_ext = "rem_small"
     else:
@@ -149,40 +197,31 @@ if __name__ == "__main__":
         kl_subset = []
         idx_subset = []
         pred_seed = []
-        for i, idx in tqdm(enumerate(remaining_indices)):
-            X_train_rem = torch.cat([X_train[0:i], X_train[i+1:]])
-            y_train_rem = torch.cat([y_train[0:i], y_train[i+1:]])
-            X_train_rem = X_train_rem.to(DEVICE)
-            y_train_rem = y_train_rem.to(DEVICE)
-            model = deepcopy(backup_model)
-            model = model.to(DEVICE)
-            optimizer = torch.optim.SGD(
-            model.parameters(),
-            lr=0.004,
-            weight_decay=0.01, momentum=0.9, nesterov=True)
-            for i in range(epochs):
-                optimizer.zero_grad()
-                output = model(X_train_rem)
-                loss = criterion(output, y_train_rem)
-                loss.backward()
-                optimizer.step()
-            mean2, prec2 = get_mean_and_prec(X_train_rem.cpu(), y_train_rem.cpu(), model)
-            kl1, square_diff1 = _computeKL(mean1, mean2, prec1, prec2)
-            kl_subset.append(kl1)
-            square_diff.append(square_diff1)
-            idx_subset.append(idx)
-            # pred_seed.append(correct)
+        n_jobs = 60
+        indices_in_data = list(range(len(remaining_indices)))
+        chunks = split_into_chunks(remaining_indices, n_jobs * 8)
+        i_chunks = split_into_chunks(indices_in_data, n_jobs * 8)
+        start_time = time.time()
+        results = Parallel(n_jobs=-2, batch_size=1, verbose=20)(
+            delayed(train_model)(i_s, chunk, mean1, prec1, X_train, y_train) for i_s, chunk in tqdm(zip(i_chunks, chunks))
+        )
+        print(f"took {time.time() - start_time}")
+        for kl1, square_diff1, idx in results:
+            kl_subset.extend(kl1)
+            square_diff.extend(square_diff1)
+            idx_subset.extend(idx)
         combined = list(zip(kl_subset, idx_subset))
         if rem_small == True:
             combined.sort(key=lambda x: x[0])
         else: 
             combined.sort(key=lambda x: -x[0])
 
-        kl_subset = combined[0]
-        idx_subset = combined[1]
+        kl_subset, idx_subset = zip(*combined)
+        kl_subset = list(kl_subset)
+        idx_subset = list(idx_subset)
         if len(kl_subset) > n_rem_per_step:
-            onioning_ordering.append(idx_subset[0:n_rem_per_step])
-            onioning_kl.append(kl_subset[0:n_rem_per_step])
+            onioning_ordering.extend(idx_subset[0:n_rem_per_step])
+            onioning_kl.extend(kl_subset[0:n_rem_per_step])
             remaining_indices = [x for x in remaining_indices if x not in idx_subset[0:n_rem_per_step]]
         else:
             onioning_ordering.extend(idx_subset)

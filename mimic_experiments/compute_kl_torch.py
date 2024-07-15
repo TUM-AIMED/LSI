@@ -1,7 +1,7 @@
 from Datasets.dataset_helper import get_dataset
 import numpy as np
 from laplace import Laplace
-from utils.kl_div import _computeKL
+from utils.kl_div import _computeKL, _computeKL_from_full
 import torch
 from torch.utils.data import TensorDataset
 import os
@@ -11,6 +11,9 @@ from copy import deepcopy
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import gc
+from models.final_models_to_test import get_model
+import random 
+
 
 gc.collect()
 # DEVICE = torch.device("cpu")
@@ -33,7 +36,7 @@ class TinyModel(torch.nn.Module):
         x = self.features(x)
         return x
 
-def get_mean_and_prec(data, labels, tinymodel):
+def get_mean_and_prec(data, labels, model, mode = "diag"):
     labels = np.asarray(labels)
     labels = torch.from_numpy(labels).to(torch.long).to(DEVICE)
     data = np.asarray(data)
@@ -49,14 +52,47 @@ def get_mean_and_prec(data, labels, tinymodel):
 
 
     # print(DEVICE)
-    la = Laplace(tinymodel.features.to(DEVICE), 'classification',
-                subset_of_weights='all',
-                hessian_structure='diag')
-    la.fit(train_loader)
-
+    if mode == "diag":
+        la = Laplace(model.features.to(DEVICE), 'classification',
+                    subset_of_weights='all',
+                    hessian_structure='diag')
+        la.fit(train_loader)
+    elif mode == "full":
+        la = Laplace(model.features.to(DEVICE), 'classification',
+            subset_of_weights='all',
+            hessian_structure='full')
+        la.fit(train_loader)
     mean = la.mean.cpu().numpy()
     post_prec = la.posterior_precision.cpu().numpy()
     return mean, post_prec
+
+def corrupt_label(y_train, corrupt):
+    y_unique = torch.unique(y_train)
+    idx_list = list(range(len(y_train)))
+    corrupted_idx = random.sample(idx_list, int(corrupt * len(y_train)))
+    # corrupted_idx = list(range(500))
+    for idx in corrupted_idx:
+        org_class = y_train[idx]
+        sampled_class = random.randint(0, len(y_unique) - 1)
+        while sampled_class == org_class:
+            sampled_class = random.randint(0, len(y_unique) - 1)
+        y_train[idx] = sampled_class
+    return corrupted_idx, y_train
+
+
+def corrupt_data(X_train, y_train, noise_level, corrupt_data_label):
+    X_train_new = []
+    corrupted_idx = []
+    std = torch.std(X_train)
+    for i, (X_train_indiv, y_train_indiv) in enumerate(zip(X_train, y_train)):
+        if y_train_indiv == corrupt_data_label:
+            X_train_indiv += std*noise_level*torch.randn(X_train_indiv.shape).to(DEVICE)
+            corrupted_idx.append(i)
+        X_train_new.append(X_train_indiv)
+    X_train_new = torch.stack(X_train_new)
+    X_train_new = X_train_new.to(DEVICE)
+
+    return corrupted_idx, X_train_new
 
 
 if __name__ == "__main__":
@@ -67,23 +103,47 @@ if __name__ == "__main__":
     """ 
     parser = argparse.ArgumentParser(description="Process optional float inputs.")
     parser.add_argument("--n_seeds", type=int, default=1, help="Value for lerining_rate (optional)")
-    parser.add_argument("--n_rem", type=int, default=10000, help="Value for lerining_rate (optional)")
+    parser.add_argument("--n_rem", type=int, default=1000, help="Value for lerining_rate (optional)")
     parser.add_argument("--batch_num", type=int, default=1, help="Value for lerining_rate (optional)")
     parser.add_argument("--name", type=str, default=None, help="Value for lerining_rate (optional)")
     parser.add_argument("--name_ext", type=str, default="torch")
-    parser.add_argument("--epochs", type=int, default=1000, help="Value for lerining_rate (optional)")
-    parser.add_argument("--dataset", type=str, default="Primacompressed", help="Value for lerining_rate (optional)")
+    parser.add_argument("--epochs", type=int, default=1000, help="Value for lerining_rate (optional)") # 150 for Resnet, 700 for CNN, 600 for MLP
+    parser.add_argument("--lr", type=float, default=0.004, help="Value for lerining_rate (optional)") # General 0.004 0.01 for Resnet, 0.005 for CNN and MLP
+    parser.add_argument("--mom", type=float, default=0.9, help="Value for lerining_rate (optional)") # 0.9
+
+    parser.add_argument("--dataset", type=str, default="cifar10compressed", help="Value for lerining_rate (optional)")
+    parser.add_argument("--model", type=str, default="Tinymodel", help="Value for lerining_rate (optional)")
     parser.add_argument("--subset", type=int, default=50000, help="Value for lerining_rate (optional)")
     parser.add_argument("--range1", type=int, default=0, help="Value for lerining_rate (optional)")
-    parser.add_argument("--range2", type=int, default=100, help="Value for lerining_rate (optional)")
-    parser.add_argument("--lr", type=float, default= 0.1, help="Value for lerining_rate (optional)")
+    parser.add_argument("--range2", type=int, default=1000, help="Value for lerining_rate (optional)")
+    parser.add_argument("--full", action="store_true", default=False, help="A boolean argument")
     parser.add_argument("--corrupt", type=float, default=0.0)
+    parser.add_argument("--corrupt_data", type=float, default=0.0)
+    parser.add_argument("--corrupt_data_label", type=int, default=0)
+
     args = parser.parse_args()
 
+    full = args.full
+    print(f"Full? {full}")
+    mom = 0.9 # args.mom # 0.9
+    wd = 5e-4 # 0.01
+
+    if args.dataset == "cifar10":
+        n_classes = 4
     if args.dataset == "cifar100compressed":
         n_classes = 100
     if args.dataset == "cifar10compressed":
         n_classes = 10
+    if args.dataset == "Imagenettecompressed":
+        n_classes = 10
+        args.subset = 9469
+        args.range1 = 0
+        args.range2 = 9469
+    if args.dataset == "Imagewoofcompressed":
+        n_classes = 10
+        args.subset = 9025
+        args.range1 = 0
+        args.range2 = 9025
     if args.dataset == "Primacompressed":
         n_classes = 3
         args.subset = 4646
@@ -92,24 +152,47 @@ if __name__ == "__main__":
         args.range2 = 4646
 
 
-    path_name = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_jax_upd2"
+    path_name = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_torch_upd2_after_workshop"
     if args.name == None and args.range1 == 0 and args.range2 == 0:
-        file_name = "kl_jax_torch_" + str(args.epochs) + "_remove_" + str(args.n_rem) + "_dataset_" + str(args.dataset) + "_subset_" + str(args.subset) + "_corrupt_" + str(args.corrupt) + "_" + str(args.name_ext)
+        file_name = "kl_jax_torch_" + str(args.epochs) + "_remove_" + str(args.n_rem) + "_dataset_" + str(args.dataset)  + "_model_" + str(args.model) + "_subset_" + str(args.subset) + "_corrupt_" + str(args.corrupt) + "_" + str(args.name_ext)
     if args.name == None and args.range1 != 0 or args.range2 != 0:
-        file_name = "kl_jax_torch_" + str(args.epochs) + "_remove_" + str(args.n_rem) + "_dataset_" + str(args.dataset) + "_subset_" + str(args.subset) + "_range_" + str(args.range1) + "_" + str(args.range2) + "_corrupt_" + str(args.corrupt) + "_" + str(args.name_ext)
+        file_name = "kl_jax_torch_" + str(args.epochs) + "_remove_" + str(args.n_rem) + "_dataset_" + str(args.dataset)  + "_model_" + str(args.model) + "_subset_" + str(args.subset) + "_range_" + str(args.range1) + "_" + str(args.range2) + "_corrupt_" + str(args.corrupt) + "_corrupt_data_" + str(args.corrupt_data) + "_" + str(args.corrupt_data_label) + "_" + str(args.name_ext)
     else:
         file_name = args.name
 
     data_set_class, data_path = get_dataset(args.dataset)
 
-    data_set = data_set_class(data_path, train=True)
-    data_set_test = data_set_class(data_path, train=False) 
+    if args.dataset == "cifar10":
+        data_set = data_set_class(data_path, train=True, ret4=False)
+        data_set_test = data_set_class(data_path, train=False, ret4=False) 
+    else:
+        data_set = data_set_class(data_path, train=True)
+        data_set_test = data_set_class(data_path, train=False) 
     keep_indices = [*range(args.subset)]
     data_set.reduce_to_active(keep_indices)
-    X_train = data_set.data.to(DEVICE)
-    y_train = data_set.labels.to(DEVICE)
-    X_test = data_set_test.data.to(DEVICE)
-    y_test = data_set_test.labels.to(DEVICE)
+    if args.dataset == "Imagenet":
+        X_train = torch.tensor(data_set.data).to(DEVICE)
+        y_train = torch.tensor(data_set.labels).to(DEVICE)
+        X_test = torch.tensor(data_set_test.data).to(DEVICE)
+        y_test = torch.tensor(data_set_test.labels).to(DEVICE)
+    else:
+        X_train = data_set.data.to(DEVICE)
+        y_train = data_set.labels.to(DEVICE)
+        X_test = data_set_test.data.to(DEVICE)
+        y_test = data_set_test.labels.to(DEVICE)
+
+    corrupted_idx = None
+    if args.corrupt > 0:
+        corrupted_idx, y_train = corrupt_label(y_train, args.corrupt)
+    if args.corrupt_data > 0:
+        corrupted_idx, X_train = corrupt_data(X_train, y_train, args.corrupt_data, args.corrupt_data_label)
+
+    if args.model == "Tinymodel":
+        model_class = TinyModel
+    else:
+        model_class = get_model(args.model)
+
+
     N_REMOVE1 = 0
     N_REMOVE2 = args.n_rem
 
@@ -127,20 +210,27 @@ if __name__ == "__main__":
     # selu_train_model = jax.jit(train_model)
     for seed in range(N_SEEDS):
         torch.manual_seed(seed + 5)
-        model = TinyModel(n_classes)
+        model = model_class(n_classes)
         backup_model = deepcopy(model)
         model = model.to(DEVICE)
         optimizer = torch.optim.SGD(
         model.parameters(),
-        lr=0.004,
-        weight_decay=0.01, momentum=0.9, nesterov=True)
-        for i in range(epochs):
+        lr=args.lr,
+        weight_decay=wd, momentum=mom, nesterov=True)
+        for i in tqdm(range(epochs)):
             optimizer.zero_grad()
             output = model(X_train)
+            pred = torch.argmax(output, dim=1)
+            accuracy = torch.sum(pred == y_train)/y_train.shape[0]
+            print(accuracy)
             loss = criterion(output, y_train)
+            print(loss)
             loss.backward()
             optimizer.step()
-        mean1, prec1 = get_mean_and_prec(X_train.cpu(), y_train.cpu(), model)
+        if full:
+            mean1, prec1 = get_mean_and_prec(X_train.cpu(), y_train.cpu(), model, mode="full")
+        else:
+            mean1, prec1 = get_mean_and_prec(X_train.cpu(), y_train.cpu(), model)
         # print(f"{time.time() - start_time}")
         kl_seed = []
         idx_seed = []
@@ -154,9 +244,9 @@ if __name__ == "__main__":
             model = model.to(DEVICE)
             optimizer = torch.optim.SGD(
             model.parameters(),
-            lr=0.004,
-            weight_decay=0.01, momentum=0.9, nesterov=True)
-            for i in range(epochs):
+            lr=args.lr,
+            weight_decay=wd, momentum=mom, nesterov=True)
+            for j in range(epochs):
                 optimizer.zero_grad()
                 output = model(X_train_rem)
                 # pred = torch.argmax(output, dim=1)
@@ -166,8 +256,13 @@ if __name__ == "__main__":
                 # print(loss.item())
                 loss.backward()
                 optimizer.step()
-            mean2, prec2 = get_mean_and_prec(X_train_rem.cpu(), y_train_rem.cpu(), model)
-            kl1, square_diff1 = _computeKL(mean1, mean2, prec1, prec2)
+            # mean2, prec2 = get_mean_and_prec(X_train.cpu(), y_train.cpu(), model)
+            if full:
+                mean2, prec2 = get_mean_and_prec(X_train_rem.cpu(), y_train_rem.cpu(), model, mode="full")
+                kl1, square_diff1  = _computeKL_from_full(mean1, mean2, prec1, prec2)
+            else:
+                mean2, prec2 = get_mean_and_prec(X_train_rem.cpu(), y_train_rem.cpu(), model)
+                kl1, square_diff1 = _computeKL(mean1, mean2, prec1, prec2)
             # kl1, square_diff1 = _computeKL_from_full(mean1, mean2, prec1, prec2)
             print(f"KL divergence {kl1}")
             # prediction = model.predict(X_train)
@@ -195,7 +290,8 @@ if __name__ == "__main__":
     result = {"idx": idx,
               "kl": kl,
               "pred":pred, 
-              "square_diff":square_diff}
+              "square_diff":square_diff,
+              "corrupted_idx": corrupted_idx}
     if not os.path.exists(path_name):
         os.makedirs(path_name)
     file_path = os.path.join(path_name, file_name + ".pkl")

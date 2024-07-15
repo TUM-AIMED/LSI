@@ -11,7 +11,7 @@ import cv2
 import pickle
 
 class CIFAR100(Dataset):
-    def __init__(self, data_path, train=True, classes=None, portions=None, transform=None, shuffle=False):
+    def __init__(self, data_path, train=True, classes=None, portions=None, transform=None, shuffle=False, ret4=True):
         self.root_dir = data_path
         data_files = ["train"]
         test_files = ["test"]
@@ -37,11 +37,12 @@ class CIFAR100(Dataset):
         self.data = np.array(data)
         self.data = self.data.reshape((self.data.shape[0], 3, 32, 32))
         self.labels = np.array(labels)
-
+        if not ret4:
+            self.transform_data()
         self.transform = transform
         self.labels_str = np.unique(self.labels)
         self.active_indices = np.array(range(len(self.data)))
-        self.get_normalization()
+        # self.get_normalization()
 
     def get_normalization(self):
         transform = transforms.Compose([transforms.ToTensor(), transforms.Grayscale(num_output_channels=3)])
@@ -97,3 +98,21 @@ class CIFAR100(Dataset):
         tensor_image = tensor_image.to(torch.float32)
         return tensor_image, label, idx, attributes
 
+    def transform_data(self):
+        data_new = []
+        for i, data in enumerate(self.data):
+            image = data
+            image = image.transpose(1, 2, 0)
+            if self.gray:
+                transform = transforms.Compose([transforms.ToTensor(), transforms.Grayscale(num_output_channels=3),
+                                                transforms.Normalize([0.4874333, 0.4874333, 0.4874333], [0.25059983, 0.25059983, 0.25059983])])
+            else:
+                transform = transforms.Compose([transforms.ToTensor(),
+                            transforms.Normalize([0.5071, 0.4865, 0.4409], [0.2673, 0.2564, 0.2762])])
+            tensor_image = transform(image)
+            data_new.append(tensor_image)
+        # data_new = [data for lab, data in zip(self.labels, data_new) if lab in [0, 1, 2, 3]]
+        # labels_new = [lab for lab in self.labels if lab in [0, 1, 2, 3]]
+        # self.data = torch.stack(data_new) 
+        self.labels = torch.tensor(self.labels)
+        self.data = torch.stack(data_new)

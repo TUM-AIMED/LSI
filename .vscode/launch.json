@@ -29,7 +29,16 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "justMyCode": false, 
-            "host": "131.159.110.9"
+            "subProcess":false
+        },
+        {
+            "name": "Debug: Current privacy",
+            "type": "python",
+            "request": "launch",
+            "program": "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/compute_kl_torch.py",
+            "console": "integratedTerminal",
+            "args" : ["--dataset", "Imagenet", "--model", "Tinymodel", "--range1", "0", "--range2", "200"], 
+            "justMyCode": false
         },
     ]
 }

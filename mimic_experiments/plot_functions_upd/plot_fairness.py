@@ -80,7 +80,7 @@ def get_kl_data(final_path, agg_type="", rand=False):
 
 
 def main():
-    path_str = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_c10_kl_torch_fairness_computation_30Per_less_differentiated_setting/"
+    path_str = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_c10_2_kl_torch_fairness_computation_95Per/"
     save_dir = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/plot_functions_upd/results_new/"
     filenames = os.listdir(path_str)
     random.shuffle(filenames)
@@ -96,7 +96,9 @@ def main():
     for filename in tqdm(filenames):
         train_subset_cwa, combination = get_kl_data(path_str + filename)
         portions = np.array(list(train_subset_cwa[0].keys())).astype(float)
-        portions = (5000 - portions) / 5000
+        # portions = (10000 - portions) / 10000
+        portions = 1 - portions
+
         # train_subset_cwas[combination] = train_subset_cwa
         for class_dictionary_key, class_dictionary in train_subset_cwa.items():
             if class_dictionary_key == combination[0]:
@@ -134,14 +136,14 @@ def main():
     plt.rc('axes',  titlesize=8)
 
     plt.xticks(np.arange(len(portions))[::2], portions[::2], rotation='vertical')
-    plt.ylim([0, 0.8])
+    # plt.ylim([0, 0.8])
     plt.xlabel("Portion of the Intial Sample Count")
-    plt.ylabel("Test Accuracy")
+    plt.ylabel("Train Accuracy")
     sns.move_legend(p, "lower left", frameon=False, title=None)
     plt.tight_layout()
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
-    save_name = save_dir + "fair_test_ci"
+    save_name = save_dir + "fair_train_ci"
     plt.savefig(save_name + ".png", format="png")
     print(f"saving fig as {save_name}.png")
 

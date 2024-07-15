@@ -6,8 +6,12 @@ import matplotlib.image as mpimg
 import numpy as np
 import pickle
 from collections import defaultdict
+from tqdm import tqdm
 from Datasets.dataset_helper import get_dataset
-
+import shutil
+import os
+from PIL import Image
+import torchvision.transforms as transforms
 
 # def get_kl_data(final_path, agg_type, rand=False):
 #     with open(final_path, 'rb') as file:
@@ -36,7 +40,45 @@ def get_kl_data(paths, len_dataset=50000):
     idx = list(idx)
     return kl_data, idx, None
 
-def plot_images(image_paths_set1, image_paths_set2, save_dir, selected_label):
+
+def save_images(image_paths_set1, image_paths_set2, save_dir, selected_label, grayscale=False):
+    save_dir1 = os.path.join(save_dir, "Prima2_low_lsi")
+    save_dir2 = os.path.join(save_dir, "Prima2_high_lsi")
+    if not os.path.exists(save_dir1):
+        os.makedirs(save_dir1)
+        
+    # Define a transform to convert a tensor to a PIL image
+    transform = transforms.ToPILImage()
+
+    for idx, tensor in enumerate(image_paths_set1):
+        # Convert the tensor to a image image
+        image = transform(tensor)
+        # Define the image file name
+        image_name = f'image_{idx + 1}.{"PNG".lower()}'
+        # Construct the destination path
+        destination_path = os.path.join(save_dir1, image_name)
+        # Save the image
+        image.save(destination_path, format="PNG")
+        print(f"Saved {image_name} to {destination_path}")
+    if not os.path.exists(save_dir2):
+        os.makedirs(save_dir2)
+        
+    # Define a transform to convert a tensor to a PIL image
+    transform = transforms.ToPILImage()
+
+    for idx, tensor in enumerate(image_paths_set2):
+        # Convert the tensor to a image image
+        image = transform(tensor)
+        # Define the image file name
+        image_name = f'image_{idx + 1}.{"PNG".lower()}'
+        # Construct the destination path
+        destination_path = os.path.join(save_dir2, image_name)
+        # Save the image
+        image.save(destination_path, format="PNG")
+        print(f"Saved {image_name} to {destination_path}")
+
+
+def plot_images(image_paths_set1, image_paths_set2, save_dir, selected_label, grayscale=False):
     rows = 5
     cols = 4
     fig, axes = plt.subplots(rows, cols*2 + 1, figsize=(20, 10))
@@ -44,9 +86,15 @@ def plot_images(image_paths_set1, image_paths_set2, save_dir, selected_label):
     for i, (img1, img2) in enumerate(zip(image_paths_set1, image_paths_set2)):
         row = int(i/cols)
         col = i%cols
-        axes[row, col].imshow(img1)
+        if not grayscale:
+            axes[row, col].imshow(img1)
+        else:
+            axes[row, col].imshow(img1[:,:,0], cmap='gray')
         axes[row, col].axis('off')
-        axes[row, col + cols + 1].imshow(img2)
+        if not grayscale:
+            axes[row, col + cols + 1].imshow(img2)
+        else:
+            axes[row, col + cols + 1].imshow(img2[:,:,0], cmap='gray')
         axes[row, col + cols + 1].axis('off')
     
     for i in range(rows):
@@ -64,33 +112,40 @@ def plot_images(image_paths_set1, image_paths_set2, save_dir, selected_label):
     plt.title('High $\mathsf{LSI}$',
           fontsize = 15)
 
-    save_name = save_dir + "images_" + str(selected_label)
-    plt.savefig(save_name + ".png", format="png", dpi=1000)
-    print(f"saving fig as {save_name}.png")
+    save_name = save_dir + "Imagewoof_images" + str(selected_label)
+    plt.savefig(save_name + ".pdf", format="pdf", dpi=100)
+    print(f"saving fig as {save_name}.pdf")
 
 
 
 
 def get_images_form_idx(idxs):
-    dataset_class, data_path = get_dataset("cifar10")
+    # dataset_class, data_path = get_dataset("cifar10") # Prima
+    dataset_class, data_path = get_dataset("Prima") # Prima
+
     data_set = dataset_class(data_path, train=True)
     # data_set._set_classes([0, 5])
     # data_set._set_classes([4, 9]) # mnist
     images = []
     labels =[]
-    labels = data_set.labels[idxs]
-    images = data_set.data[idxs]
-    images = [im.transpose(1, 2, 0) for im in images]
+    # labels = data_set.labels[idxs]
+    # images = data_set.data[idxs]
+    for i in idxs:
+        img, lab, _, _ = data_set.__getitem__(i)
+        images.append(img)
+        labels.append(lab)
+    # images = [im.transpose(1, 2, 0) for im in images]
+    images = [im.numpy().transpose(1, 2, 0) for im in images]
     return images, labels
 
 base_path = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_torch_upd2/"
-paths = [
-    "kl_jax_torch_1000_remove_10000_dataset_cifar10compressed_subset_50000_range_0_10000_corrupt_0.0_torch.pkl",
-    "kl_jax_torch_1000_remove_10000_dataset_cifar10compressed_subset_50000_range_10000_20000_corrupt_0.0_torch.pkl",
-    "kl_jax_torch_1000_remove_10000_dataset_cifar10compressed_subset_50000_range_20000_30000_corrupt_0.0_torch.pkl",
-    "kl_jax_torch_1000_remove_10000_dataset_cifar10compressed_subset_50000_range_30000_40000_corrupt_0.0_torch.pkl",
-    "kl_jax_torch_1000_remove_10000_dataset_cifar10compressed_subset_50000_range_40000_49999_corrupt_0.0_torch.pkl"
-]
+# paths = [
+#     "kl_jax_torch_1000_remove_10000_dataset_cifar10compressed_subset_50000_range_0_10000_corrupt_0.0_torch.pkl",
+#     "kl_jax_torch_1000_remove_10000_dataset_cifar10compressed_subset_50000_range_10000_20000_corrupt_0.0_torch.pkl",
+#     "kl_jax_torch_1000_remove_10000_dataset_cifar10compressed_subset_50000_range_20000_30000_corrupt_0.0_torch.pkl",
+#     "kl_jax_torch_1000_remove_10000_dataset_cifar10compressed_subset_50000_range_30000_40000_corrupt_0.0_torch.pkl",
+#     "kl_jax_torch_1000_remove_10000_dataset_cifar10compressed_subset_50000_range_40000_49999_corrupt_0.0_torch.pkl"
+# ]
 
 # paths = [
 #     "kl_jax_torch_1000_remove_10000_dataset_cifar100compressed_subset_50000_range_0_10000_corrupt_0.0_torch.pkl",
@@ -100,24 +155,36 @@ paths = [
 #     "kl_jax_torch_1000_remove_10000_dataset_cifar100compressed_subset_50000_range_40000_49999_corrupt_0.0_torch.pkl"
 # ]
 
-paths = [base_path + path for path in paths]
+paths = [
+    "kl_jax_torch_1000_remove_4646_dataset_Primacompressed_subset_4646_range_0_4646_corrupt_0.0_torch.pkl"
+]
 
+# base_path = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_torch_upd2_after_workshop/"
+# paths = [
+#     "kl_jax_torch_1000_remove_1000_dataset_Imagenettecompressed_subset_9469_range_0_9469_corrupt_0.1_torch.pkl"
+# ]
+# paths = [
+#     "kl_jax_torch_1000_remove_1000_dataset_Imagewoofcompressed_subset_9025_range_0_9025_corrupt_0.0_torch.pkl"
+# ]
+
+paths = [base_path + path for path in paths]
+length_dataset = 4646
 
 # Example usage
 save_dir = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/plot_functions_upd/results_new/"
 
-selected_label = 5
+selected_label = 2
 
  
-kl_data_list, idx, _ = get_kl_data(paths)
+kl_data_list, idx, _ = get_kl_data(paths, len_dataset=length_dataset)
 
 combined_data = list(zip(kl_data_list, idx))
 sorted_data = sorted(combined_data, key=lambda x: np.median(x[0]))
 grad_sorted, idx = zip(*sorted_data)
 
-_, labels = get_images_form_idx(list(range(50000)))
+_, labels = get_images_form_idx(list(range(length_dataset)))
 
-for selected_label in range(10):
+for selected_label in [selected_label]: #tqdm(range(10)):
     idx_c = [index for index in idx if labels[index] == selected_label]
 
     idx_lower = list(idx_c[0:20])
@@ -125,4 +192,5 @@ for selected_label in range(10):
     images1, label1 = get_images_form_idx(idx_lower)
     images2, label2 = get_images_form_idx(idx_higher)
 
-    plot_images(images1, images2, save_dir, selected_label)
+    # plot_images(images1, images2, save_dir, selected_label, grayscale=False)
+    save_images(images1, images2, save_dir, selected_label, grayscale=False)

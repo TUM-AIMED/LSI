@@ -19,7 +19,7 @@ if __name__ == "__main__":
     """ 
     parser = argparse.ArgumentParser(description="Process optional float inputs.")
     parser.add_argument("--model", type=str, default="resnet18_headless", help="Value for lerining_rate (optional)")
-    parser.add_argument("--dataset", type=str, default="Prima", help="Value for lerining_rate (optional)")
+    parser.add_argument("--dataset", type=str, default="Imagenet", help="Value for lerining_rate (optional)")
 
 
     args = parser.parse_args()
@@ -30,7 +30,8 @@ if __name__ == "__main__":
     params["model"] = {}
     params["model"]["model"] = args.model
     params["model"]["dataset_name"] = args.dataset
-    params["save_path"] = "/vol/aimspace/users/kaiserj/Datasets/Datasets_compressed_by_" + params["model"]["model"] + "/" + params["model"]["dataset_name"]
+    params["save_path"] = "/vol/aimspace/users/kaiserj/Datasets/Datasets_compressed_by_" + params["model"]["model"] + "/" + params["model"]["dataset_name"] + "_compressed_"
+    
 
     print("--------------------------")
     print("Load data")
@@ -43,7 +44,7 @@ if __name__ == "__main__":
 
     train_loader = torch.utils.data.DataLoader(
         data_set,
-        batch_size=1, # params["training"]["batch_size"],
+        batch_size=1000, # params["training"]["batch_size"],
         shuffle=False,
         num_workers=0,
         pin_memory=False,
@@ -51,7 +52,7 @@ if __name__ == "__main__":
 
     test_loader = torch.utils.data.DataLoader(
         data_set_test,
-        batch_size=1, # params["training"]["batch_size"],
+        batch_size=1000, # params["training"]["batch_size"],
         shuffle=False,
         num_workers=0,
         pin_memory=False,
@@ -80,11 +81,13 @@ if __name__ == "__main__":
                 torch.cuda.empty_cache()
                 data, target = data.cuda(), target.cuda()
                 res = model(data)
-                targets.append(target.cpu().item())
-                idxs.append(idx.item())
-                reses.append(torch.squeeze(res).cpu())
+                targets.extend(target)
+                idxs.extend(idx)
+                reses.extend(torch.squeeze(res).cpu())
                 del data
                 del target
+        targets = [tar.cpu().item() for tar in targets]
+        idxs = [id_in.cpu().item() for id_in in idxs]
         torch.save(reses, params["save_path"] + "/" + path + "_data.pt")
         torch.save(targets, params["save_path"] + "/" + path + "_target.pt")
 

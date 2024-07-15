@@ -13,7 +13,7 @@ import random
 
 
 class Compressed(Dataset):
-    def __init__(self, data_path, train=True, classes=None, portions=None, transform=None, shuffle=False, resize = None):
+    def __init__(self, data_path, train=True, classes=None, portions=None, transform=None, shuffle=False, resize = None, ret4=True):
         self.root_dir = data_path
         self.resize = False
 

@@ -12,10 +12,11 @@ import pickle
 import random
 from sklearn.model_selection import train_test_split
 from torchvision.transforms.functional import pil_to_tensor
+from tqdm import tqdm
 
 
 class Prima(Dataset):
-    def __init__(self, data_path, train=True, classes=None, portions=None, transform=None, shuffle=False, resize = None):
+    def __init__(self, data_path, train=True, classes=None, portions=None, transform=None, shuffle=False, resize = None, ret4=True, smaller=False):
         self.root_dir = data_path
         self.resize = False
         data_path = os.path.join(self.root_dir, 'train')
@@ -56,8 +57,11 @@ class Prima(Dataset):
             self.labels = labels_val
         self.active_indices = np.array([i for i in range(len(self.data))])
         result_data = []
-        for path in self.data:
-            image = Image.open(path).convert('L').convert("RGB").resize((512, 512))
+        for path in tqdm(self.data):
+            if not smaller:
+                image = Image.open(path).convert('L').convert("RGB").resize((512, 512))
+            else:
+                image = Image.open(path).convert('L').convert("RGB").resize((128, 128))
             result_data.append(pil_to_tensor(image) / 255.0)  
         self.data = torch.stack(result_data)
         self.labels = torch.tensor(self.labels)

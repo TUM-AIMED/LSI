@@ -41,10 +41,10 @@ def get_kl_data(final_path):
 
 
 def main():
-    path_str1 = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_jax_upd2/kl_jax_epochs_1000_remove_5_dataset_cifar10compressed_subset_50000_corrupt_0.0_.pkl"
-    path_str2 = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_jax_upd2/kl_jax_epochs_1000_remove_10000_dataset_cifar10compressed_subset_50000_corrupt_0.0_full.pkl"
+    path_str1 = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_torch_upd2_one_day_bf_deadline/kl_jax_torch_1000_remove_500_dataset_Primacompressed_subset_4646_range_0_500_corrupt_0.0_used_for_hessian_comp_this_is_diag.pkl"
+    path_str2 = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_torch_upd2_one_day_bf_deadline/kl_jax_torch_1000_remove_500_dataset_Primacompressed_subset_4646_range_0_500_corrupt_0.0_used_for_hessian_comp_this_is_full.pkl"
 
-    save_dir = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/plot_functions_upd/results/"
+    save_dir = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/plot_functions_upd/results_new/"
    
    
     kl1_diag = get_kl_data(path_str1)

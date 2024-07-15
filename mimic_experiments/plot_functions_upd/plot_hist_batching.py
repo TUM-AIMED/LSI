@@ -54,25 +54,24 @@ class CPU_Unpickler(pickle.Unpickler):
 
 
 
-def get_kl_data(final_path, batches):
+def get_kl_data(final_path):
     with open(final_path, 'rb') as file:
         final_dict = pickle.load(file)
-    kl_data = np.array(final_dict["kl"])
-    kl_data = np.split(kl_data, batches, axis=1)
-    flattened_kl = []
-    for i, data in enumerate(kl_data):
-        flattened_kl.append(data.flatten())
-    return flattened_kl
+    kl_data = np.array(final_dict["kl"])[0]
+    batches = final_dict["idx_batch_assignmet"] 
+    batches = [idx.tolist() for idx in batches]
+    kl_data = [kl_data[batch] for batch in batches]
+    return kl_data
 
 
 
 def main():
-    kl_path = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_jax_upd2/kl_jax_epochs_200_remove_50000_dataset_cifar10compressed_subset_50000_corrupt_0.0_batch_5.pkl"
-    save_dir = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/plot_functions_upd/results/"
+    kl_path = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_torch_upd2/kl_jax_torch_400_remove_4646_dataset_Primacompressed_subset_4646_range_0_4646_corrupt_0.0_batched_3_torch.pkl"
+    save_dir = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/plot_functions_upd/results_new/"
 
     batches = 5
 
-    kl1_diag = get_kl_data(kl_path, batches)
+    kl1_diag = get_kl_data(kl_path)
     
 
     # Create a 2x2 subplot grid
@@ -108,8 +107,8 @@ def main():
     sns.move_legend(p, "upper left", frameon=False, title=None)
     plt.tight_layout()
     save_name = save_dir + "hists_batch"
-    plt.savefig(save_name + ".pdf", format="pdf", dpi=1000)
-    print(f"saving fig as {save_name}.pdf")
+    plt.savefig(save_name + ".png", format="png", dpi=1000)
+    print(f"saving fig as {save_name}.png")
 
     print("")
     

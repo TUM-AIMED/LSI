@@ -26,6 +26,7 @@ from Datasets.dataset_cifar100 import CIFAR100
 from Datasets.dataset_compressed import Compressed
 from Datasets.dataset_imagenet import Imagenet
 from Datasets.dataset_prima import Prima
+from Datasets.dataset_imagenette import ImagenetteDataset
 
 def get_dataset(keyword):
     if keyword == "diabetes":
@@ -86,6 +87,14 @@ def get_dataset(keyword):
         return Prima, "/vol/aimspace/users/kaiserj/Datasets/Datasets_Raw/PRIMA"
     elif keyword == "Primacompressed":
         return Compressed, "/vol/aimspace/users/kaiserj/Datasets/Datasets_compressed_by_resnet18_headless/Prima"
+    elif keyword == "Imagenette":
+        return ImagenetteDataset, "/vol/aimspace/users/kaiserj/Datasets/Datasets_Raw/imagenette2-160"
+    elif keyword == "Imagenettecompressed":
+        return Compressed, "/vol/aimspace/users/kaiserj/Datasets/Datasets_compressed_by_resnet18_headless/Imagenette"
+    elif keyword == "Imagewoof":
+        return ImagenetteDataset, "/vol/aimspace/users/kaiserj/Datasets/Datasets_Raw/imagewoof2-160"
+    elif keyword == "Imagewoofcompressed":
+        return Compressed, "/vol/aimspace/users/kaiserj/Datasets/Datasets_compressed_by_resnet18_headless/Imagewoof"
     else:
         raise ValueError("Invalid keyword. Please provide a valid keyword.")
     

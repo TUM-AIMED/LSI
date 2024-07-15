@@ -61,45 +61,47 @@ def get_kl_data(final_path, agg_type, rand=False):
     # kl_data = np.mean(kl_data, axis=0)
     kl_data = kl_data.flatten()
     idx = final_dict["idx"][0]
-    noise = final_dict["noise"]
-    clip = final_dict["clip"]
-    return kl_data, idx, noise, clip
+    # noise = final_dict["noise"]
+    # clip = final_dict["clip"]
+    return kl_data, idx# , noise, clip
 
 
 
 def main():
-    path_str = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_jax_dp_upd2_fixed_noise_schedule/"
-    save_dir = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/plot_functions_upd/results/"
-    # filenames = [
-    #     "kl_jax_epochs_700_lr_2_remove_5000_seeds_5_dataset_cifar10compressed_subset_50000_noise_0.0_clip_5.0_.pkl",
-    #     "kl_jax_epochs_700_lr_2_remove_5000_seeds_5_dataset_cifar10compressed_subset_50000_noise_0.0_clip_1.0_.pkl",
-    #     "kl_jax_epochs_700_lr_2_remove_5000_seeds_5_dataset_cifar10compressed_subset_50000_noise_0.0_clip_0.1_.pkl",
-    #     "kl_jax_epochs_700_lr_2_remove_5000_seeds_5_dataset_cifar10compressed_subset_50000_noise_0.0_clip_0.01_.pkl"
-    #     ]
+    path_str = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_torch_DP/"
+    save_dir = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/mimic_experiments/plot_functions_upd/results_new/"
     filenames = [
-        "kl_jax_epochs_700_lr_2_remove_5000_seeds_5_dataset_cifar10compressed_subset_50000_noise_0.0_clip_0.1_.pkl",
-        "kl_jax_epochs_700_lr_2_remove_5000_seeds_5_dataset_cifar10compressed_subset_50000_noise_8.1_clip_0.1_.pkl",
-        "kl_jax_epochs_700_lr_2_remove_5000_seeds_5_dataset_cifar10compressed_subset_50000_noise_16.9_clip_0.1_.pkl",
-        "kl_jax_epochs_700_lr_2_remove_5000_seeds_5_dataset_cifar10compressed_subset_50000_noise_25.5_clip_0.1_.pkl"
-    ]
+        "kl_torch_epochs_700_remove_5000_dataset_cifar10compressed_subset_50000_corrupt_0.0_clip_0.01_noise_0.0_.pkl",
+        "kl_torch_epochs_700_remove_5000_dataset_cifar10compressed_subset_50000_corrupt_0.0_clip_0.1_noise_0.0_.pkl",
+        "kl_torch_epochs_700_remove_5000_dataset_cifar10compressed_subset_50000_corrupt_0.0_clip_1.0_noise_0.0_.pkl",
+        "kl_torch_epochs_700_remove_5000_dataset_cifar10compressed_subset_50000_corrupt_0.0_clip_5.0_noise_0.0_.pkl"
+        ]
+
+    # filenames = [
+    #    "kl_torch_epochs_700_remove_5000_dataset_cifar10compressed_subset_50000_corrupt_0.0_clip_0.1_noise_0.0_.pkl",
+    #    "kl_torch_epochs_700_remove_5000_dataset_cifar10compressed_subset_50000_corrupt_0.0_clip_0.1_noise_8.1_.pkl",
+    #    "kl_torch_epochs_700_remove_5000_dataset_cifar10compressed_subset_50000_corrupt_0.0_clip_0.1_noise_16.9_.pkl",
+    #    "kl_torch_epochs_700_remove_5000_dataset_cifar10compressed_subset_50000_corrupt_0.0_clip_0.1_noise_25.5_.pkl",
+    # ]
     
     kl_data = []
     idx_data = []
     noise_data = []
     clip_data = []
-    # clip_data = [0.01, 0.1, 1.0, 5.0] 
-    # clip_data = [0.1, 0.1, 0.1, 0.1]
+    # noise_data = [0.0, 8.1, 16.9, 25.5] 
+    clip_data = [0.01, 0.1, 1, 5]
+    # epsilon = ["\infty", 20, 8, 5]
 
     # filenames.reverse()
     # clip_data.reverse()
 
     for filename in filenames:
         kl_path = path_str + filename
-        kl1_diag, init_idx, noise, clip = get_kl_data(kl_path, "kl1_diag")
+        kl1_diag, init_idx = get_kl_data(kl_path, "kl1_diag")
         kl_data.append(kl1_diag)
         idx_data.append(init_idx)
-        noise_data.append(noise)
-        clip_data.append(clip)
+        # noise_data.append(noise)
+        # clip_data.append(clip)
     
     for inidices in idx_data:
         assert inidices == idx_data[0]
@@ -111,8 +113,9 @@ def main():
 
     # Iterate through rows of the data and create histograms in subplots
     # label_list = ["Noise: " + str(noise_data[i]) + ", Clip: " + str(clip_data[i]) for i in range(len(clip_data))]
-    # label_list = ["Clip: " + str(clip_data[i]) for i in range(len(clip_data))]
-    label_list = ["Noise: " + str(noise_data[i]) for i in range(len(clip_data))]
+    label_list = ["Clip: " + str(clip_data[i]) for i in range(len(clip_data))]
+    # label_list = ["Noise: " + str(noise_data[i]) for i in range(len(clip_data))]
+    # label_list = ["$\epsilon = " + str(epsilon[i]) + "$" for i in range(len(epsilon))]
 
     long_df = pd.DataFrame()
 
@@ -130,7 +133,7 @@ def main():
     # plt.xlim(1e-5, 8e3)
     # plt.ylim(0, 3.2)
     plt.xlim(0e-5, 8e-1)
-    plt.ylim(0, 1.5)
+    # plt.ylim(0, 1.5)
     plt.xlabel("LSI")
     plt.ylabel("Density")
 
@@ -138,9 +141,9 @@ def main():
     plt.rc('ytick', labelsize=8)
     plt.rc('axes',  labelsize=8)
     plt.rc('axes',  titlesize=8)
-    sns.move_legend(p, "upper left", frameon=False, title=None)
+    sns.move_legend(p, "upper right", frameon=False, title=None)
     plt.tight_layout()
-    save_name = save_dir + "hists_dp_sns"
+    save_name = save_dir + "new_hists_clip"
     plt.savefig(save_name + ".pdf", format="pdf", dpi=1000)
     print(f"saving fig as {save_name}.pdf")
 
