@@ -95,6 +95,10 @@ def get_dataset(keyword):
         return ImagenetteDataset, "/vol/aimspace/users/kaiserj/Datasets/Datasets_Raw/imagewoof2-160"
     elif keyword == "Imagewoofcompressed":
         return Compressed, "/vol/aimspace/users/kaiserj/Datasets/Datasets_compressed_by_resnet18_headless/Imagewoof"
+    elif keyword == "Imdbcompressed":
+        return Compressed, "/vol/aimspace/users/kaiserj/Datasets/Datasets_compressed_by_bert_headless/imdb"
+    elif keyword == "Lorem":
+        return Compressed, "/vol/aimspace/users/kaiserj/Datasets/Datasets_compressed_by_bert_headless/LoremIpsum"
     else:
         raise ValueError("Invalid keyword. Please provide a valid keyword.")
     

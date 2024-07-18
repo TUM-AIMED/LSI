@@ -25,9 +25,9 @@ else:
 
 
 class TinyModel(torch.nn.Module):
-    def __init__(self, n_classes):
+    def __init__(self, n_classes, in_features=512):
         super(TinyModel, self).__init__()
-        self.linear1 = torch.nn.Linear(512, n_classes)
+        self.linear1 = torch.nn.Linear(in_features, n_classes)
         self.features = torch.nn.Sequential(self.linear1)
 
 
@@ -80,17 +80,30 @@ def corrupt_label(y_train, corrupt):
     return corrupted_idx, y_train
 
 
-def corrupt_data(X_train, y_train, noise_level, corrupt_data_label):
-    X_train_new = []
-    corrupted_idx = []
-    std = torch.std(X_train)
-    for i, (X_train_indiv, y_train_indiv) in enumerate(zip(X_train, y_train)):
-        if y_train_indiv == corrupt_data_label:
-            X_train_indiv += std*noise_level*torch.randn(X_train_indiv.shape).to(DEVICE)
-            corrupted_idx.append(i)
-        X_train_new.append(X_train_indiv)
-    X_train_new = torch.stack(X_train_new)
-    X_train_new = X_train_new.to(DEVICE)
+def corrupt_data(args, X_train, y_train, noise_level, corrupt_data_label):
+    if args.dataset == "Imdbcompressed":
+        n_corrupt = int(len(X_train) * noise_level)
+        lorem_data_set_class, lorem_data_path = get_dataset("Lorem")
+        lorem_dataset = lorem_data_set_class(data_path, train=True)
+        X_corrupt = lorem_dataset.data[0:n_corrupt].to(DEVICE)
+        y_corrupt = lorem_dataset.labels[0:n_corrupt].to(DEVICE)
+        X_train_new = torch.concat([X_train, X_corrupt])
+        y_train_new = torch.concat([y_train, y_corrupt])
+        corrupted_idx = [i for i in range(len(X_train), len(X_train) + len(X_train_new))]
+        return corrupted_idx, X_train_new, y_train_new
+    else:
+        X_train_new = []
+        corrupted_idx = []
+        std = torch.std(X_train)
+        for i, (X_train_indiv, y_train_indiv) in enumerate(zip(X_train, y_train)):
+            if y_train_indiv == corrupt_data_label:
+                X_train_indiv += std*noise_level*torch.randn(X_train_indiv.shape).to(DEVICE)
+                corrupted_idx.append(i)
+            X_train_new.append(X_train_indiv)
+        X_train_new = torch.stack(X_train_new)
+        X_train_new = X_train_new.to(DEVICE)
+
+
 
     return corrupted_idx, X_train_new
 
@@ -111,7 +124,7 @@ if __name__ == "__main__":
     parser.add_argument("--lr", type=float, default=0.004, help="Value for lerining_rate (optional)") # General 0.004 0.01 for Resnet, 0.005 for CNN and MLP
     parser.add_argument("--mom", type=float, default=0.9, help="Value for lerining_rate (optional)") # 0.9
 
-    parser.add_argument("--dataset", type=str, default="cifar10compressed", help="Value for lerining_rate (optional)")
+    parser.add_argument("--dataset", type=str, default="Imdbcompressed", help="Value for lerining_rate (optional)")
     parser.add_argument("--model", type=str, default="Tinymodel", help="Value for lerining_rate (optional)")
     parser.add_argument("--subset", type=int, default=50000, help="Value for lerining_rate (optional)")
     parser.add_argument("--range1", type=int, default=0, help="Value for lerining_rate (optional)")
@@ -150,11 +163,17 @@ if __name__ == "__main__":
         args.n_rem = 4646
         args.range1 = 0
         args.range2 = 4646
+    if args.dataset == "Imdbcompressed":
+        n_classes = 2
+        args.subset = 25000
+        args.n_rem = 25000
+        args.range1 = 0
+        args.range2 = 25000
 
 
     path_name = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_torch_upd2_after_workshop"
     if args.name == None and args.range1 == 0 and args.range2 == 0:
-        file_name = "kl_jax_torch_" + str(args.epochs) + "_remove_" + str(args.n_rem) + "_dataset_" + str(args.dataset)  + "_model_" + str(args.model) + "_subset_" + str(args.subset) + "_corrupt_" + str(args.corrupt) + "_" + str(args.name_ext)
+        file_name = "kl_jax_torch_" + str(args.epochs) + "_remove_" + str(args.n_rem) + "_dataset_" + str(args.dataset)  + "_model_" + str(args.model) + "_subset_" + str(args.subset) + "_corrupt_" + str(args.corrupt)  + "_corrupt_data_" + str(args.corrupt_data) + "_" + str(args.corrupt_data_label) + "_" + str(args.name_ext)
     if args.name == None and args.range1 != 0 or args.range2 != 0:
         file_name = "kl_jax_torch_" + str(args.epochs) + "_remove_" + str(args.n_rem) + "_dataset_" + str(args.dataset)  + "_model_" + str(args.model) + "_subset_" + str(args.subset) + "_range_" + str(args.range1) + "_" + str(args.range2) + "_corrupt_" + str(args.corrupt) + "_corrupt_data_" + str(args.corrupt_data) + "_" + str(args.corrupt_data_label) + "_" + str(args.name_ext)
     else:
@@ -185,7 +204,11 @@ if __name__ == "__main__":
     if args.corrupt > 0:
         corrupted_idx, y_train = corrupt_label(y_train, args.corrupt)
     if args.corrupt_data > 0:
-        corrupted_idx, X_train = corrupt_data(X_train, y_train, args.corrupt_data, args.corrupt_data_label)
+        if args.dataset == "Imdbcompressed":
+            corrupted_idx, X_train, y_train = corrupt_data(args, X_train, y_train, args.corrupt_data, args.corrupt_data_label)
+        else:
+            corrupted_idx, X_train = corrupt_data(args, X_train, y_train, args.corrupt_data, args.corrupt_data_label)
+
 
     if args.model == "Tinymodel":
         model_class = TinyModel
@@ -210,7 +233,10 @@ if __name__ == "__main__":
     # selu_train_model = jax.jit(train_model)
     for seed in range(N_SEEDS):
         torch.manual_seed(seed + 5)
-        model = model_class(n_classes)
+        if args.dataset == "Imdbcompressed":
+            model = model_class(n_classes, in_features=768)
+        else:
+            model = model_class(n_classes)
         backup_model = deepcopy(model)
         model = model.to(DEVICE)
         optimizer = torch.optim.SGD(
