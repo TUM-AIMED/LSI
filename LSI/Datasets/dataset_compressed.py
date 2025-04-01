@@ -1,104 +1,164 @@
 import os
-import pandas as pd
 import numpy as np
 import torch
-from PIL import Image
 from torch.utils.data import Dataset
-from torchvision import transforms
 from sklearn import preprocessing
-import sklearn
-import cv2
-import pickle
-import random
 
 
-class Compressed(Dataset):
-    def __init__(self, data_path, train=True, classes=None, portions=None, transform=None, shuffle=False, resize = None, ret4=True):
+class CompressedDataset(Dataset):
+    def __init__(self, data_path, train=True, transform=None, resize=None):
+        """
+        Dataset class for handling compressed data.
+
+        Args:
+            data_path (str): Path to the dataset directory.
+            train (bool): Whether to load training data or test data.
+            transform (callable, optional): Transformations to apply to the data.
+            resize (tuple, optional): Resize dimensions for the data.
+        """
         self.root_dir = data_path
-        self.resize = False
-        # /vol/aimspace/users/kaiserj/Datasets/Datasets_compressed_by_bert_headless/LoremIpsum2/train_target.pt
-        # /vol/aimspace/users/kaiserj/Datasets/Datasets_compressed_by_bert_headless/LoremIpsum2/train_target.pt
-        if train:
-            data_path = os.path.join(self.root_dir, "train_data.pt")
-            target_path = os.path.join(self.root_dir, "train_target.pt")
-            with open(data_path, 'rb') as fo:
-                self.data = torch.load(fo)
-            with open(target_path, 'rb') as fo:
-                self.labels = torch.load(fo)
-        else:
-            data_path = os.path.join(self.root_dir, "test_data.pt")
-            target_path = os.path.join(self.root_dir, "test_target.pt")
-            with open(data_path, 'rb') as fo:
-                self.data = torch.load(fo)
-            with open(target_path, 'rb') as fo:
-                self.labels = torch.load(fo)
-        self.data = torch.stack([tsr.detach() for tsr in self.data], dim=0)
-        self.labels = torch.tensor(self.labels)
-        self.active_indices = np.array([i for i in range(len(self.data))])
+        self.transform = transform
+        self.resize = resize
+        self.train = train
 
+        # Load data and labels
+        self.data, self.labels = self._load_data()
+        self.active_indices = np.arange(len(self.data))
 
-    def apply_label_noise(self, noisy_idx):
-        self.noisy_idx = noisy_idx
-        self.noisy_initial_labels = self.labels[self.noisy_idx]
+    def _load_data(self):
+        """
+        Assume with compressed data it can be loaded into memory.
+        Load data and labels from the specified directory.
+        """
+        data_file = "train_data.pt" if self.train else "test_data.pt"
+        target_file = "train_target.pt" if self.train else "test_target.pt"
+
+        data_path = os.path.join(self.root_dir, data_file)
+        target_path = os.path.join(self.root_dir, target_file)
+
+        with open(data_path, 'rb') as data_file:
+            data = torch.load(data_file)
+
+        with open(target_path, 'rb') as target_file:
+            labels = torch.load(target_file)
+
+        # Ensure tensors are detached and stacked
+        data = torch.stack([tensor.detach() for tensor in data], dim=0)
+        labels = torch.tensor(labels)
+
+        return data, labels
+
+    def apply_label_noise(self, noisy_indices):
+        """
+        Apply random label noise to specified indices.
+
+        Args:
+            noisy_indices (list): Indices of labels to be replaced with noise.
+        """
+        self.noisy_indices = noisy_indices
+        self.noisy_initial_labels = self.labels[noisy_indices]
         self.noisy_replacements = []
-        possible_labels = np.unique(self.labels)
-        for i, value in enumerate(self.noisy_initial_labels):
-            random_choice = value  # Initialize with the specific value
-            while random_choice == value:
-                random_choice = np.random.choice(possible_labels)
-            self.noisy_replacements.append(random_choice)
-        
-        self.labels[self.noisy_idx] = self.noisy_replacements
-        return
-    
-    def apply_human_label_noise(self):
-            path = "/vol/aimspace/users/kaiserj/Datasets/Datasets_Raw/CIFAR10N/CIFAR-10_human.pt"
-            noise_file = torch.load(path)
-            aggre_label = torch.tensor(noise_file['aggre_label'])
-            clean_label = torch.tensor(noise_file['clean_label'])
-            assert torch.equal(clean_label, self.labels)
-            self.noisy_idx = [idx for idx in range(len(self.labels)) if self.labels[idx] != aggre_label[idx]]
-            self.labels = aggre_label
-            return self.noisy_idx
 
-    def _apply_reduction(self, portions):
-        num_samples = int(len(self.labels) * portions[0])
+        possible_labels = np.unique(self.labels)
+        for label in self.noisy_initial_labels:
+            random_label = label
+            while random_label == label:
+                random_label = np.random.choice(possible_labels)
+            self.noisy_replacements.append(random_label)
+
+        self.labels[noisy_indices] = self.noisy_replacements
+
+    def apply_human_label_noise(self, noise_file_path):
+        """
+        Apply human label noise from a specified file.
+
+        Args:
+            noise_file_path (str): Path to the human noise file.
+        """
+        noise_file = torch.load(noise_file_path)
+        aggre_labels = torch.tensor(noise_file['aggre_label'])
+        clean_labels = torch.tensor(noise_file['clean_label'])
+
+        assert torch.equal(clean_labels, self.labels), "Clean labels do not match the dataset labels."
+
+        self.noisy_indices = [idx for idx in range(len(self.labels)) if self.labels[idx] != aggre_labels[idx]]
+        self.labels = aggre_labels
+
+        return self.noisy_indices
+
+    def reduce_dataset(self, portion):
+        """
+        Reduce the dataset to a specified portion.
+
+        Args:
+            portion (float): Fraction of the dataset to retain.
+        """
+        num_samples = int(len(self.labels) * portion)
         self.data = self.data[:num_samples]
         self.labels = self.labels[:num_samples]
         self.active_indices = self.active_indices[:num_samples]
 
-    def reduce_to_active(self, remaining_idx):
-        self.data = self.data[remaining_idx]
-        self.labels = self.labels[remaining_idx]
-        self.active_indices = self.active_indices[remaining_idx]
+    def filter_by_indices(self, indices):
+        """
+        Filter the dataset to include only specified indices.
 
-    def remove_curr_index_from_data(self, idx):
-        current_idx = idx
+        Args:
+            indices (list): Indices to retain in the dataset.
+        """
+        self.data = self.data[indices]
+        self.labels = self.labels[indices]
+        self.active_indices = self.active_indices[indices]
+
+    def remove_index(self, index):
+        """
+        Remove a specific index from the dataset.
+
+        Args:
+            index (int): Index to remove.
+        """
+        current_idx = self.active_indices.tolist().index(index)
         self.data = np.delete(self.data, current_idx, axis=0)
         self.labels = np.delete(self.labels, current_idx, axis=0)
         self.active_indices = np.delete(self.active_indices, current_idx, axis=0)
 
-    def remove_index_from_data(self, base_idx):
-        current_idx = self.active_indices.tolist().index(base_idx)
-        self.data = np.delete(self.data, current_idx, axis=0)
-        self.labels = np.delete(self.labels, current_idx, axis=0)
-        self.active_indices = np.delete(self.active_indices, current_idx, axis=0)
-        
-    def reduce_to_active_class(self, remaining_class):
-        mask = [idx for idx in range(len(self.labels)) if self.labels[idx] in remaining_class]
+    def filter_by_classes(self, classes):
+        """
+        Filter the dataset to include only specified classes.
+
+        Args:
+            classes (list): Classes to retain in the dataset.
+        """
+        mask = [idx for idx in range(len(self.labels)) if self.labels[idx] in classes]
         self.data = self.data[mask]
         self.labels = self.labels[mask]
         self.active_indices = self.active_indices[mask]
-        le = preprocessing.LabelEncoder()
-        le.fit(self.labels)
-        self.labels = le.transform(self.labels)
-        self.class_assignments2 = le
-        print(dict(zip(le.classes_, le.transform(le.classes_))))
+
+        # Re-encode labels to be zero-indexed
+        label_encoder = preprocessing.LabelEncoder()
+        self.labels = label_encoder.fit_transform(self.labels)
+        self.class_mapping = dict(zip(label_encoder.classes_, label_encoder.transform(label_encoder.classes_)))
+        print(self.class_mapping)
 
     def __len__(self):
+        """
+        Return the number of samples in the dataset.
+        """
         return len(self.data)
 
     def __getitem__(self, idx):
+        """
+        Retrieve a single sample from the dataset.
+
+        Args:
+            idx (int): Index of the sample to retrieve.
+
+        Returns:
+            tuple: (data, label, idx, additional_info)
+        """
         data = self.data[idx]
-        label = self.labels[idx]        
+        label = self.labels[idx]
+
+        if self.transform:
+            data = self.transform(data)
+
         return data, label, idx, []
