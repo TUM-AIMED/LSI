@@ -5,7 +5,7 @@ from bayesdll.vi import Runner
 from Datasets.dataset_helper import get_dataset
 import numpy as np
 from laplace import Laplace
-from utils.kl_div import _computeKL
+from LSI.experiments.utils_kl import _computeKL
 import torch
 from torch.utils.data import TensorDataset, DataLoader
 import os

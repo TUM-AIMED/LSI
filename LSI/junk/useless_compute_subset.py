@@ -14,74 +14,12 @@ import warnings
 import json
 import argparse
 import time
+import random
 import pickle
 from tqdm import tqdm
 from collections import defaultdict
-
-def log_realized_gradients(params,
-                         model,
-                         DEVICE,
-                         optimizer,
-                         criterion,
-                         train_loader_0,
-                         grad_norms,
-                         N):
-    """
-    train runs the epoch loop and calls train_step and test
-
-    :param params: params dict
-    :param model: pytorch model
-    :param DEVICE: available device
-    :param optimizer: optimizer fct (Adam, AdamW etc.)
-    :param criterion: loss function
-    :param train_loader_0: dataloader of the whole, unfiltered dataset
-    :param grad_norms: tensor to save all the accumulated gradient norms - used for logging
-    :param budget: privacy budget of data elements
-    :param N: number of training samples
-
-    """ 
-
-    # Train loader returns also indices (vector idx)
-    with BatchMemoryManager(data_loader=train_loader_0, max_physical_batch_size=500, optimizer=optimizer) as train_loader_0_new:
-        for _, (data, target, idx, _) in enumerate(train_loader_0_new):
-            # print(idx[0])
-            data, target = data.to(DEVICE), target.to(DEVICE)
-            optimizer.zero_grad()
-            output = model(data)
-            loss = criterion(output, target)
-            loss.backward(retain_graph=True)
-
-            batch_grad_norms = torch.zeros(len(target)).to(DEVICE)
-            # Clip each parameter's per-sample gradient
-            for (ii, p) in enumerate(model.parameters()):
-                if not p.requires_grad:
-                    continue
-                per_sample_grad = p.grad_sample
-
-                # dimension across which we compute the norms for this gradient part
-                # (here is difference e.g. between biases and weight matrices)
-                per_sample_grad = torch.reshape(per_sample_grad, (per_sample_grad.shape[0], per_sample_grad.shape[1], -1))
-                dims = list(range(1, len(per_sample_grad.shape)))
-
-                # compute the clipped norms. Gradients will be clipped in .backward()
-                per_sample_grad_norms = per_sample_grad.norm(dim=dims)
-                batch_grad_norms += per_sample_grad_norms ** 2
-
-
-            # compute the clipped norms. Gradients will be then clipped in .backward()
-            # clipped, per sample gradient norms, to track privacy
-            for index, batch_grad_norm in zip(idx, batch_grad_norms):
-                grad_norms[index.item()].append(((
-                    torch.sqrt(batch_grad_norm).clamp(max=params["DP"]["max_per_sample_grad_norm"])
-                ) ** 2).item())
-
-    del batch_grad_norms
-    optimizer.zero_grad()
-    torch.cuda.empty_cache()
-
-    return 
-
-
+import wandb
+os.environ["WANDB__SERVICE_WAIT"] = "3000"
 
 def normal_train_step(params,
                model, 
@@ -91,25 +29,23 @@ def normal_train_step(params,
                train_loader_active):
    
     # Run full batch, sum up the gradients. Then we filter and replace the train_loader
-    with BatchMemoryManager(data_loader=train_loader_active, max_physical_batch_size=500, optimizer=optimizer) as train_loader_new:
-        correct = 0
-        total = 0
-        loss_list = []
-        for _, (data, target, idx, _) in enumerate(train_loader_new):
-            data, target = data.to(DEVICE), target.to(DEVICE)
-            optimizer.zero_grad()
-            output = model(data)
-            loss = criterion(output, target)
-            _, predicted = torch.max(output.data, 1)
-            total += target.size(0)
-            correct += (predicted == target).sum().item()
-            loss.backward()
-            optimizer.step()
-            loss_list.append(loss.item())
+    correct = 0
+    total = 0
+    loss_list = []
+    for _, (data, target, idx, _) in enumerate(train_loader_active):
+        data, target = data.to(DEVICE), target.to(DEVICE)
+        optimizer.zero_grad()
+        output = model(data)
+        loss = criterion(output, target)
+        _, predicted = torch.max(output.data, 1)
+        total += target.size(0)
+        correct += (predicted == target).sum().item()
+        loss.backward()
+        optimizer.step()
+        loss_list.append(loss.item())
     accuracy = correct/total
     optimizer.zero_grad()
     torch.cuda.empty_cache()
-    print(f"accuracy was {accuracy}")
     return np.mean(np.array(loss_list)), accuracy
 
 
@@ -152,20 +88,9 @@ def train(
 ):
 
     # Compute all the individual norms (actually the squared norms squares are saved here)
-    grad_norms = defaultdict(list)
-    recorded_gradients = []
     for epoch in range(1, params["training"]["num_epochs_init"]):
         model.train()
-        print(epoch, flush=True)
-        log_realized_gradients(params,
-                         model,
-                         DEVICE,
-                         optimizer,
-                         criterion,
-                         train_loader_0,
-                         grad_norms,
-                         N)
-        
+        #print(epoch, flush=True)
         # print(grad_norms)
         train_loss, train_accuracy = normal_train_step(params,
                model, 
@@ -181,9 +106,10 @@ def train(
                 DEVICE, 
                 criterion, 
                 test_loader)
-    print(f"train accuracy {train_accuracy:.4f}")
-    print(f"val accuracy {val_accuracy:.4f}")
-    return model, epoch, grad_norms, train_accuracy, val_accuracy
+        # print(f"train accuracy {train_accuracy:.4f}")
+        # print(f"val accuracy {val_accuracy:.4f}")
+        wandb.log({"train accuracy": train_accuracy, "val accuracy": val_accuracy})
+    return model, epoch, None, train_accuracy, val_accuracy
 
 
 def train_with_params(
@@ -208,7 +134,7 @@ def train_with_params(
     N = len(train_loader.dataset)
     if N < params["training"]["batch_size"]:
         raise Exception(f"Batchsize of {params['training']['batch_size']} is larger than the size of the dataset of {N}")
-    N_CLASSES =  len(np.unique(train_loader.dataset.labels))
+    N_CLASSES =  100 # len(np.unique(train_loader.dataset.labels))
     model_class = get_model(params["model"]["model"])
     if params["model"]["model"] == "mlp" or params["model"]["model"] == "small_mlp" or params["model"]["model"] == "logreg":
         model = ModuleValidator.fix_and_validate(model_class(len(torch.flatten(train_X_example)), N_CLASSES).to(DEVICE))
@@ -230,16 +156,16 @@ def train_with_params(
         lr=params["training"]["learning_rate"],
         weight_decay=params["training"]["l2_regularizer"], momentum=0.9, nesterov=True)
 
-    privacy_engine = PrivacyEngine(secure_mode=False)
+    # privacy_engine = PrivacyEngine(secure_mode=False)
 
-    model, optimizer, train_loader = privacy_engine.make_private(
-        module=model,
-        optimizer=optimizer,
-        data_loader=train_loader,
-        noise_multiplier=params["DP"]["sigma_tilde"],
-        max_grad_norm=params["DP"]["max_per_sample_grad_norm"],
-        poisson_sampling=False,
-    )
+    # model, optimizer, train_loader = privacy_engine.make_private(
+    #     module=model,
+    #     optimizer=optimizer,
+    #     data_loader=train_loader,
+    #     noise_multiplier=params["DP"]["sigma_tilde"],
+    #     max_grad_norm=params["DP"]["max_per_sample_grad_norm"],
+    #     poisson_sampling=False,
+    # )
 
 
 
@@ -252,7 +178,7 @@ def train_with_params(
         optimizer,
         criterion,
         N,
-        privacy_engine=privacy_engine
+        privacy_engine=None
         )
 
 
@@ -292,71 +218,112 @@ if __name__ == "__main__":
     params["model"]["dataset_name"] = args.dataset
     params["training"] = {}
     params["training"]["batch_size"] = 256
-    params["training"]["learning_rate"] = 3e-01# 0.002 mlp #3e-03 # -3 for mnist
+    params["training"]["learning_rate"] = 5e-01# 0.002 mlp #3e-03 # -3 for mnist
     params["training"]["l2_regularizer"] = 1e-08
     params["training"]["num_epochs_init"] = args.epochs
     params["testing"] = {}
-    params["testing"]["test_every"] = params["training"]["num_epochs_init"] + 1
+    params["testing"]["test_every"] = 1 # params["training"]["num_epochs_init"] + 1
     params["Paths"] = {}
 
     params["freeze"] = True # args.freeze
-    params["DP"] = {}
-    params["DP"]["sigma_tilde"] = args.dp_noise
-    params["DP"]["max_per_sample_grad_norm"] = args.clip
     params["idx_path"] = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_idp/results_cifar100compressed_logreg4_1_100.0_1e-09__1000_50000/results.pkl"
+    params["subset"] = "middle"
+    wandb.login()
 
-    print("--------------------------")
-    print("Load data")
-    print("--------------------------", flush=True)
+    splits = [0, 0.2, 0.4, 0.6, 0.8, 1]
+    splits1 = []
+    splits2 = []
+    splits3 = []
+    for split1 in splits:
+        for split2 in splits:
+            if split1 + split2 > 1:
+                continue
+            splits1.append(split1)
+            splits2.append(split2)
+            splits3.append(1 - split1 - split2) 
 
-    data_set_class, data_path = get_dataset(params["model"]["dataset_name"])
- 
-    data_set = data_set_class(data_path, train=True)
-    data_set_test = data_set_class(data_path, train=False) 
-    if args.subset > 1:
-        args.subset = int(args.subset)
-        keep_indices = [*range(args.subset)]
-    else:
+    for sub in zip(splits1, splits2, splits3):
+        print(sub)
+        # args.subset = sub
+        run = wandb.init(
+        # Set the project where this run will be logged
+        project="imprtant dataset location diff split, fixed subsets",
+        name="subset_" + str(sub[0]) + "_" + str(sub[1]) + "_" + str(sub[2]),
+        # name="subset_" + params["subset"] + "_" + str(args.subset),
+        # Track hyperparameters and run metadata
+        config=params, reinit=True,
+        # mode="disabled"
+        )
+
+        print("--------------------------")
+        print("Load data")
+        print("--------------------------", flush=True)
+
+        data_set_class, data_path = get_dataset(params["model"]["dataset_name"])
+    
+        data_set = data_set_class(data_path, train=True)
+        data_set_test = data_set_class(data_path, train=False) 
+        # if params["subset"] == "rand":
+        #     subset_size = 50000 * args.subset
+        #     keep_indices = random.sample([*range(50000)], int(subset_size))
+        # elif params["subset"] == "middle":
+        #     keep_indices = load_sorted_idx(params["idx_path"])
+        #     keep_indices = keep_indices[25000-int(args.subset/2 * 50000):25000+int(args.subset/2 * 50000)]
+        # elif params["subset"] == "first_and_last":
+        #     keep_indices = load_sorted_idx(params["idx_path"])
+        #     keep_indices1 = keep_indices[-int(args.subset/2 * 50000):]
+        #     keep_indices2 = keep_indices[0:int(args.subset/2 * 50000)]
+        #     keep_indices = [*keep_indices1, *keep_indices2]
+        # elif params["subset"] == "last":
+        #     keep_indices = load_sorted_idx(params["idx_path"])
+        #     keep_indices = keep_indices[-int(args.subset * 50000):]
+        # elif params["subset"] == "first":
+        #     keep_indices = load_sorted_idx(params["idx_path"])
+        #     keep_indices = keep_indices[0:int(args.subset * 50000)]
+        # else:
+        #     if args.subset > 1:
+        #         args.subset = int(args.subset)
+        #         keep_indices = [*range(args.subset)]
+        #     else:
+        #         raise Exception("sth went wrong")
+        #         # params["training"]["learning_rate"] = params["training"]["learning_rate"]*args.subset
         keep_indices = load_sorted_idx(params["idx_path"])
-        keep_indices = keep_indices[-int(args.subset * 50000):]
-        # params["training"]["learning_rate"] = params["training"]["learning_rate"]*args.subset
-    data_set.reduce_to_active(keep_indices)
+        high_indices = keep_indices[44000:50000]
+        middle_indices = keep_indices[22000:28000]
+        low_indices = keep_indices[0:6000]
+        split1, split2, split3 = sub
+        keep_indices_low = random.sample(low_indices, int(split1 * 0.05 * 50000))
+        keep_indices_mid = random.sample(middle_indices, int(split2 * 0.05 * 50000))
+        keep_indices_high = random.sample(high_indices, int(split3 * 0.05 * 50000))
+        keep_indices = [*keep_indices_low, *keep_indices_mid, *keep_indices_high]
 
-    train_loader = torch.utils.data.DataLoader(
-        data_set,
-        batch_size=len(data_set), # params["training"]["batch_size"],
-        shuffle=False,
-        num_workers=0,
-        pin_memory=False,
-    )
+        # keep_indices = load_sorted_idx(params["idx_path"])
+        # keep_indices = keep_indices[sub * 2500:(sub+1) * 2500]
+        data_set.reduce_to_active(keep_indices)
 
-    test_loader = torch.utils.data.DataLoader(
-        data_set_test,
-        batch_size=len(data_set), # params["training"]["batch_size"],
-        shuffle=False,
-        num_workers=0,
-        pin_memory=False,
-    )
+        train_loader = torch.utils.data.DataLoader(
+            data_set,
+            batch_size=len(data_set), # params["training"]["batch_size"],
+            shuffle=False,
+            num_workers=0,
+            pin_memory=False,
+        )
 
-    grad_norms_all = {}
-    for i in tqdm(range(N_SEEDS)):
-        params["model"]["seed"] = i
+        test_loader = torch.utils.data.DataLoader(
+            data_set_test,
+            batch_size=len(data_set), # params["training"]["batch_size"],
+            shuffle=False,
+            num_workers=0,
+            pin_memory=False,
+        )
+
         _, _, grad_norms, train_accuracy, val_accuracy = train_with_params(
             params,
             train_loader,
             test_loader
         )
-        grad_norms_all[i] = grad_norms
-    
-    if args.name != None:
-        params["Paths"]["final_save_path"] = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_idp/results_" + str(args.name)
-    else:
-        name_str = f"{params['model']['dataset_name']}_{params['model']['model']}_{N_SEEDS}_{args.clip}_{args.dp_noise}_{args.corrupt}_{args.epochs}_{args.subset}_{train_accuracy:.4f}_{val_accuracy:.4f}{args.name_ext}"
-        params["Paths"]["final_save_path"] = "/vol/aimspace/users/kaiserj/Individual_Privacy_Accounting/results_kl_indiv_script/results_" + name_str
+        print(sub)
+        print(train_accuracy)
+        print(val_accuracy)
+        print
 
-    if not os.path.exists(params["Paths"]["final_save_path"]):
-        os.makedirs(params["Paths"]["final_save_path"])
-    filename = params["Paths"]["final_save_path"] + "/results.pkl"
-    with open(filename, 'wb') as file:
-        pickle.dump(grad_norms_all, file)
-    print(f"Saving file under {filename}")

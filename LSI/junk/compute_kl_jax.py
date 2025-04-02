@@ -4,7 +4,7 @@ from Datasets.dataset_helper import get_dataset
 import time
 import numpy as np
 from laplace import Laplace
-from utils.kl_div import _computeKL, _computeblockKL, _computeKL_from_full
+from LSI.experiments.utils_kl import _computeKL, _computeblockKL, _computeKL_from_full
 import torch
 from torch.utils.data import TensorDataset
 from functools import partial

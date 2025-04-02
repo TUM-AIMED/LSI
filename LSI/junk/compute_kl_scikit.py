@@ -2,7 +2,7 @@
 from Datasets.dataset_helper import get_dataset
 from laplace import Laplace
 from copy import deepcopy
-from utils.kl_div import _computeKL
+from LSI.experiments.utils_kl import _computeKL
 from tqdm import tqdm
 import os
 import pickle

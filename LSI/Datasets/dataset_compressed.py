@@ -3,27 +3,39 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 from sklearn import preprocessing
+import random  # Added for corrupt_label and corrupt_data
+from Datasets.dataset_helper import get_dataset
 
 
 class CompressedDataset(Dataset):
-    def __init__(self, data_path, train=True, transform=None, resize=None):
+    def __init__(self, root_dir=None, train=True, transform=None, resize=None, data=None, labels=None):
         """
         Dataset class for handling compressed data.
 
         Args:
-            data_path (str): Path to the dataset directory.
-            train (bool): Whether to load training data or test data.
+            root_dir (str, optional): Directory containing the dataset files.
+            train (bool, optional): Whether to load training data or test data.
             transform (callable, optional): Transformations to apply to the data.
             resize (tuple, optional): Resize dimensions for the data.
+            data (torch.Tensor, optional): Preloaded data tensor.
+            labels (torch.Tensor, optional): Preloaded labels tensor.
         """
-        self.root_dir = data_path
         self.transform = transform
         self.resize = resize
-        self.train = train
 
-        # Load data and labels
-        self.data, self.labels = self._load_data()
-        self.active_indices = np.arange(len(self.data))
+        if data is not None and labels is not None:
+            # Initialize with provided data and labels
+            self.data = data
+            self.labels = labels
+            self.active_indices = np.arange(len(self.data))
+        elif root_dir is not None:
+            # Initialize by loading data from the specified directory
+            self.root_dir = root_dir
+            self.train = train
+            self.data, self.labels = self._load_data()
+            self.active_indices = np.arange(len(self.data))
+        else:
+            raise ValueError("Either root_dir or both data and labels must be provided.")
 
     def _load_data(self):
         """
@@ -47,6 +59,59 @@ class CompressedDataset(Dataset):
         labels = torch.tensor(labels)
 
         return data, labels
+
+    def corrupt_label(self, corrupt):
+        """
+        Corrupt a portion of the labels in the dataset.
+
+        Args:
+            corrupt (float): Fraction of labels to corrupt.
+
+        Returns:
+            list: Indices of corrupted labels.
+        """
+        y_unique = torch.unique(self.labels)
+        idx_list = list(range(len(self.labels)))
+        corrupted_idx = random.sample(idx_list, int(corrupt * len(self.labels)))
+        for idx in corrupted_idx:
+            org_class = self.labels[idx]
+            sampled_class = random.randint(0, len(y_unique) - 1)
+            while sampled_class == org_class:
+                sampled_class = random.randint(0, len(y_unique) - 1)
+            self.labels[idx] = sampled_class
+        return corrupted_idx
+
+    def corrupt_data(self, args, noise_level, corrupt_data_label):
+        """
+        Corrupt a portion of the data in the dataset.
+
+        Args:
+            args: Arguments containing dataset information.
+            noise_level (float): Level of noise to add to the data.
+            corrupt_data_label (int): Label of data to corrupt.
+
+        Returns:
+            list: Indices of corrupted data.
+        """
+        if args.dataset == "Imdbcompressed":
+            n_corrupt = int(len(self.data) * noise_level)
+            lorem_data_set_class, lorem_data_path = get_dataset("Loremcompressed")
+            lorem_dataset = lorem_data_set_class(lorem_data_path, train=True)
+            X_corrupt = lorem_dataset.data[:n_corrupt]
+            y_corrupt = torch.cat((torch.ones(n_corrupt // 2, dtype=torch.int), torch.zeros(n_corrupt // 2, dtype=torch.int)))
+            y_corrupt = y_corrupt[torch.randperm(n_corrupt)]
+            self.data = torch.concat([self.data, X_corrupt])
+            self.labels = torch.concat([self.labels, y_corrupt])
+            corrupted_idx = list(range(len(self.data) - n_corrupt, len(self.data)))
+            return corrupted_idx
+        else:
+            corrupted_idx = []
+            std = torch.std(self.data)
+            for i, (data_indiv, label_indiv) in enumerate(zip(self.data, self.labels)):
+                if label_indiv == corrupt_data_label:
+                    self.data[i] += std * noise_level * torch.randn(data_indiv.shape)
+                    corrupted_idx.append(i)
+            return corrupted_idx
 
     def apply_label_noise(self, noisy_indices):
         """

@@ -14,7 +14,7 @@ import argparse
 import time
 import random
 from laplace.curvature import AsdlGGN, BackPackGGN, AsdlHessian, AsdlEF, BackPackEF
-from utils.kl_div import computeKL
+from LSI.experiments.utils_kl import computeKL
 from utils.plot_utils import plot_and_save_histogram, plot_and_save_lineplot, plot_and_save_lineplot_with_running_sum
 
 

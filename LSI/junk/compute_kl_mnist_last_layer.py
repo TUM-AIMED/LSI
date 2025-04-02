@@ -14,7 +14,7 @@ import argparse
 import time
 import random
 from laplace.curvature import AsdlGGN, BackPackGGN, AsdlHessian, AsdlEF, BackPackEF
-from utils.kl_div import computeKL
+from LSI.experiments.utils_kl import computeKL
 
 class EarlyStopper:
     def __init__(self, patience=1, min_delta=0):
