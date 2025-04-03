@@ -9,7 +9,7 @@ from backpack.extensions import (
 import time
 import pickle
 from collections import defaultdict
-from Datasets.dataset_helper import get_dataset
+from LSI.Datasets.dataset_helper import get_dataset
 
 from laplace.utils.matrix import Kron
 

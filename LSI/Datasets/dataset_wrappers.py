@@ -31,7 +31,7 @@ class BatchDatasetWrapper:
         self.dataset = dataset
         self.num_batches = num_batches
         self.data = []
-        self.label = []
+        self.labels = []
 
         self._split_into_batches()
 
@@ -44,12 +44,12 @@ class BatchDatasetWrapper:
         batch_size = len(data) // self.num_batches
 
         self.data = [data[i * batch_size:(i + 1) * batch_size] for i in range(self.num_batches)]
-        self.label = [labels[i * batch_size:(i + 1) * batch_size] for i in range(self.num_batches)]
+        self.labels = [labels[i * batch_size:(i + 1) * batch_size] for i in range(self.num_batches)]
 
         # Handle any remaining data
         if len(data) % self.num_batches != 0:
             self.data[-1] = torch.cat((self.data[-1], data[self.num_batches * batch_size:]))
-            self.label[-1] = torch.cat((self.label[-1], labels[self.num_batches * batch_size:]))
+            self.labels[-1] = torch.cat((self.label[-1], labels[self.num_batches * batch_size:]))
 
     def remove_index(self, index):
         """
@@ -64,6 +64,6 @@ class BatchDatasetWrapper:
             if cumulative_size + len(batch) > index:
                 local_index = index - cumulative_size
                 self.data[batch_idx] = torch.cat((batch[:local_index], batch[local_index + 1:]))
-                self.label[batch_idx] = torch.cat((self.label[batch_idx][:local_index], self.label[batch_idx][local_index + 1:]))
+                self.labels[batch_idx] = torch.cat((self.labels[batch_idx][:local_index], self.labels[batch_idx][local_index + 1:]))
                 break
             cumulative_size += len(batch)

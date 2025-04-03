@@ -262,10 +262,10 @@ class VGG7(nn.Module):
         def make_vgg_block(in_channels, out_channels, num_convs):
             layers = []
             for _ in range(num_convs):
-            layers.append(nn.Conv2d(in_channels, out_channels, 3, 1, 1))
-            layers.append(nn.ReLU(inplace=True))
-            in_channels = out_channels
-            layers.append(nn.MaxPool2d(2, 2))
+                layers.append(nn.Conv2d(in_channels, out_channels, 3, 1, 1))
+                layers.append(nn.ReLU(inplace=True))
+                in_channels = out_channels
+                layers.append(nn.MaxPool2d(2, 2))
             return nn.Sequential(*layers)
 
         self.features = nn.Sequential(
@@ -296,12 +296,29 @@ class VGG7(nn.Module):
 class CustomResNet18(nn.Module):
     def __init__(self, n_classes):
         super(CustomResNet18, self).__init__()
-        self.model = models.resnet18(pretrained=False)
+        self.model = models.resnet18(pretrained=True)
         num_ftrs = self.model.fc.in_features
         self.model.fc = nn.Linear(num_ftrs, n_classes)
 
     def forward(self, x):
         return self.model(x)
+    
+    def pass_except_last(self, x):
+        x = self.model.conv1(x)
+        x = self.model.bn1(x)
+        x = self.model.relu(x)
+        x = self.model.maxpool(x)
+
+        x = self.model.layer1(x)
+        x = self.model.layer2(x)
+        x = self.model.layer3(x)
+        x = self.model.layer4(x)
+
+        x = self.model.avgpool(x)
+        x = torch.flatten(x, 1)
+        return x
+    
+    
 
 
 class ResNet9(nn.Module):

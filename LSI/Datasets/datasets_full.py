@@ -109,7 +109,7 @@ class BaseDataset(Dataset):
 
 # CIFAR-10 dataset class
 class CIFAR10(BaseDataset):
-    def __init__(self, data_path, train=True, classes=None, portions=None, transform=None, shuffle=False, resize=None, ret4=True, download=False):
+    def __init__(self, data_path, train=True, classes=None, portions=None, transform=None, shuffle=False, resize=None, ret4=True, download=True):
         """
         CIFAR-10 dataset loader.
         """
@@ -166,7 +166,7 @@ class CIFAR10(BaseDataset):
 
 # CIFAR-100 dataset class
 class CIFAR100(BaseDataset):
-    def __init__(self, data_path, train=True, classes=None, portions=None, transform=None, shuffle=False, resize=None, ret4=True, download=False):
+    def __init__(self, data_path, train=True, classes=None, portions=None, transform=None, shuffle=False, resize=None, ret4=True, download=True):
         """
         CIFAR-100 dataset loader.
         """

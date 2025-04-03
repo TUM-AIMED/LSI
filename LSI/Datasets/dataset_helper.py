@@ -1,31 +1,46 @@
 from torch.utils.data import DataLoader
-from Datasets.datasets_full import (
+from LSI.Datasets.datasets_full import (
     CIFAR10,
     CIFAR100,
     Imagenet,
     Prima,
     ImagenetteDataset,
 )
-from Datasets.dataset_compressed import CompressedDataset
+from LSI.Datasets.dataset_compressed import CompressedDataset
+import json
 
-def get_dataset(keyword, base_path):
+def set_path_compressed(name, path, json_path):
+    try:
+        with open(json_path, "r") as file:
+            data = json.load(file)
+    except FileNotFoundError:
+        data = {}
+
+    data[name + "_compressed"] = path
+    with open(json_path, "w") as file:
+        json.dump(data, file, indent=4)
+
+def get_dataset_compressed(keyword, base_path, json_path):
+    with open(json_path, "r") as file:
+        dataset_config = json.load(file)
+
+    if keyword + "_compressed" not in dataset_config:
+        return None, None
+    return f"{base_path}{dataset_config[keyword + '_compressed']}", f"{dataset_config[keyword + '_compressed']}"
+
+def get_dataset(keyword, base_path, json_path):
+    with open(json_path, "r") as file:
+        dataset_config = json.load(file)
+
     dataset_paths = {
-        "cifar10": (CIFAR10, f"{base_path}/CIFAR10/cifar-10-batches-py"),
-        "cifar100": (CIFAR100, f"{base_path}/CIFAR100/cifar-100-python"),
-        "cifar10compressed": (CompressedDataset, f"{base_path}/cifar10"),
-        "cifar100compressed": (CompressedDataset, f"{base_path}/cifar100"),
-        "cifar100compressedgray": (CompressedDataset, f"{base_path}/cifar100_grayscale"),
-        "Imagenet": (Imagenet, "/vol/aimspace/projects/ILSVRC2012/"),
-        "Prima": (Prima, f"{base_path}/PRIMA"),
-        "Primacompressed": (CompressedDataset, f"{base_path}/Prima"),
-        "Imagenette": (ImagenetteDataset, f"{base_path}/imagenette2-160"),
-        "Imagenettecompressed": (CompressedDataset, f"{base_path}/Imagenette"),
-        "Imagewoof": (ImagenetteDataset, f"{base_path}/imagewoof2-160"),
-        "Imagewoofcompressed": (CompressedDataset, f"{base_path}/Imagewoof"),
-        "Imdbcompressed": (CompressedDataset, f"{base_path}/imdb"),
-        "Loremcompressed": (CompressedDataset, f"{base_path}/LoremIpsum2"),
-    }
+        "cifar10": (CIFAR10, f"{base_path}{dataset_config['cifar10']}"),
+        "cifar100": (CIFAR100, f"{base_path}{dataset_config['cifar100']}"),
+        "Imagenet": (Imagenet, f"{base_path}{dataset_config['Imagenet']}"),
+        "Prima": (Prima, f"{base_path}/{dataset_config['Prima']}"),
+        "Imagenette": (ImagenetteDataset, f"{base_path}{dataset_config['Imagenette']}"),
+        "Imagewoof": (ImagenetteDataset, f"{base_path}{dataset_config['Imagewoof']}"),
 
+    }
     if keyword in dataset_paths:
         return dataset_paths[keyword]
     else:

@@ -1,0 +1,18 @@
+[project]
+name = "lsi"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "laplace-torch>=0.2.2.2",
+    "opacus>=1.5.3",
+    "opencv-python>=4.11.0.86",
+    "pandas>=2.2.3",
+    "requests>=2.32.3",
+    "scikit-learn>=1.6.1",
+    "torch>=2.6.0",
+    "torchaudio>=2.6.0",
+    "torchvision>=0.21.0",
+    "tqdm>=4.67.1",
+]

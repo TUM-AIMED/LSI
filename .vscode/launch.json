@@ -28,8 +28,9 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "justMyCode": false, 
-            "subProcess":false
+            "justMyCode": false,
+            "subProcess": false,
+            "cwd": "/vol/miltank/users/kaiserj/Individual_Privacy_Accounting"
         },
         {
             "name": "Debug: Current privacy",

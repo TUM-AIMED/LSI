@@ -6,14 +6,14 @@ from laplace import Laplace
 
 
 def get_mean_and_prec(data_set, model, mode, DEVICE):
-    data, labels = data_set.data.to(DEVICE), data_set.labels.to(DEVICE)
-    labels = torch.from_numpy(np.asarray(labels)).to(torch.long)
-    data = torch.from_numpy(np.asarray(data)).to(torch.float32)
+    data, labels = torch.cat(data_set.data).cpu(), torch.cat(data_set.labels).cpu()
+    # labels = torch.from_numpy(np.asarray(labels)).to(torch.long)
+    # data = torch.from_numpy(np.asarray(data)).to(torch.float32)
     train_loader = torch.utils.data.DataLoader(
         TensorDataset(data, labels),
         batch_size=128,
         shuffle=False,
-        num_workers=0,
+        num_workers=4,
         pin_memory=False,
     )
     la = Laplace(model.features.to(DEVICE), 'classification', subset_of_weights='all', hessian_structure=mode)

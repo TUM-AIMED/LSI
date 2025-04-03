@@ -4,8 +4,8 @@ import torch
 from torch.utils.data import Dataset
 from sklearn import preprocessing
 import random  # Added for corrupt_label and corrupt_data
-from Datasets.dataset_helper import get_dataset
-
+from tqdm import tqdm
+import requests
 
 class CompressedDataset(Dataset):
     def __init__(self, root_dir=None, train=True, transform=None, resize=None, data=None, labels=None):
@@ -108,7 +108,7 @@ class CompressedDataset(Dataset):
             corrupted_idx = []
             std = torch.std(self.data)
             for i, (data_indiv, label_indiv) in enumerate(zip(self.data, self.labels)):
-                if label_indiv == corrupt_data_label:
+                if label_indiv in corrupt_data_label:
                     self.data[i] += std * noise_level * torch.randn(data_indiv.shape)
                     corrupted_idx.append(i)
             return corrupted_idx
@@ -133,21 +133,43 @@ class CompressedDataset(Dataset):
 
         self.labels[noisy_indices] = self.noisy_replacements
 
-    def apply_human_label_noise(self, noise_file_path):
+    def apply_human_label_noise(self, noise_file_path, dname):
         """
         Apply human label noise from a specified file.
 
         Args:
             noise_file_path (str): Path to the human noise file.
+            dname (str): Dataset name, either 'cifar10' or 'cifar100'.
         """
-        noise_file = torch.load(noise_file_path)
-        aggre_labels = torch.tensor(noise_file['aggre_label'])
+        if dname in ["cifar10", "cifar10compressed", "cifar10_compressed"]:
+            url = "https://github.com/UCSC-REAL/cifar-10-100n/raw/main/data/CIFAR-10_human.pt"
+            label_key = 'aggre_label'
+            noise_file_path = os.path.join(noise_file_path, "CIFAR-10_human.pt")
+        elif dname in ["cifar100", "cifar100compressed", "cifar100_compressed"]:
+            url = "https://github.com/UCSC-REAL/cifar-10-100n/raw/main/data/CIFAR-100_human.pt"
+            label_key = 'noisy_label'
+            noise_file_path = os.path.join(noise_file_path, "CIFAR-100_human.pt")
+        else:
+            raise ValueError("Unsupported dataset name. Use 'cifar10' or 'cifar100'.")
+
+        if not os.path.exists(noise_file_path):
+            os.makedirs(os.path.dirname(noise_file_path), exist_ok=True)
+            response = requests.get(url, allow_redirects=True)
+            if response.status_code == 200:
+                with open(noise_file_path, 'wb') as f:
+                    f.write(response.content)
+                print(f"Downloaded and saved noise file to {noise_file_path}")
+            else:
+                raise RuntimeError(f"Failed to download the noise file from {url}. HTTP status code: {response.status_code}")
+
+        noise_file = torch.load(noise_file_path, weights_only=False)
+        noisy_labels = torch.tensor(noise_file[label_key])
         clean_labels = torch.tensor(noise_file['clean_label'])
 
         assert torch.equal(clean_labels, self.labels), "Clean labels do not match the dataset labels."
 
-        self.noisy_indices = [idx for idx in range(len(self.labels)) if self.labels[idx] != aggre_labels[idx]]
-        self.labels = aggre_labels
+        self.noisy_indices = [idx for idx in range(len(self.labels)) if self.labels[idx] != noisy_labels[idx]]
+        self.labels = noisy_labels
 
         return self.noisy_indices
 
@@ -173,6 +195,13 @@ class CompressedDataset(Dataset):
         self.data = self.data[indices]
         self.labels = self.labels[indices]
         self.active_indices = self.active_indices[indices]
+
+        # Re-encode labels to be zero-indexed if not all values from 0 to max are present
+        unique_labels = np.unique(self.labels)
+        if not np.array_equal(unique_labels, np.arange(unique_labels.min(), unique_labels.max() + 1)):
+            label_encoder = preprocessing.LabelEncoder()
+            self.labels = torch.tensor(label_encoder.fit_transform(self.labels))
+            self.class_mapping = dict(zip(label_encoder.classes_, label_encoder.transform(label_encoder.classes_)))
 
     def remove_index(self, index):
         """
@@ -200,7 +229,7 @@ class CompressedDataset(Dataset):
 
         # Re-encode labels to be zero-indexed
         label_encoder = preprocessing.LabelEncoder()
-        self.labels = label_encoder.fit_transform(self.labels)
+        self.labels = torch.tensor(label_encoder.fit_transform(self.labels))
         self.class_mapping = dict(zip(label_encoder.classes_, label_encoder.transform(label_encoder.classes_)))
         print(self.class_mapping)
 

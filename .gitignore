@@ -168,6 +168,7 @@ cython_debug/
 *.sh
 *.jpg
 *.png
+.vscode/
 C_Score/
 test.py
 mimic_experiments/results/
@@ -184,3 +185,4 @@ results_reorder/
 results_test/
 results*/
 Datasets_Raw/
+LSI/Datasets/
