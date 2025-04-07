@@ -5,7 +5,9 @@ This project introduces **Laplace Sample Information (LSI)**, a novel measure of
 
 LSI fits a Bayesian posterior to the model using the Laplace approximation. By performing Leave-One-Out (LOO) retraining of the last layer, we can probe the features of the model and compute the Kullback-Leibler (KL) divergence between the posterior distributions with and without a specific data point. This KL divergence quantifies the informativeness of the data point.
 
-![LSI Overview](Readme_data/concept.png)
+<div align="center">
+    <img src="Readme_data/concept.png" alt="LSI Overview" style="width: 75%;">
+</div>
 
 Theoretically, LSI locally approximates an upper bound of the pointwise conditional mutual information between a data point and the weights of a neural network. The formula for LSI is given as:
 
