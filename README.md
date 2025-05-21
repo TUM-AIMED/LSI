@@ -55,7 +55,7 @@ source uv/bin/activate  # On Windows use `uv\Scripts\activate`
 ```
 
 ```bash
-cd Individual_Privacy_Accounting
+cd LSI
 export PYTHONPATH=$PYTHONPATH:$(pwd)
 ```
 
